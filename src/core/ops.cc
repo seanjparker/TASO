@@ -67,7 +67,7 @@ bool Tensor::operator==(const Tensor& b)
 }
 */
 
-OpBase::OpBase(Model* _model, OpType _type)
+OpBase::OpBase(std::shared_ptr<Model> _model, OpType _type)
 : numInputs(0), model(_model), type(_type), runtime(0.0f)
 {
   // Assume only constant operator can take no inputs
@@ -80,7 +80,7 @@ OpBase::OpBase(Model* _model, OpType _type)
 }
 
 OpBase::OpBase(const Tensor& _input,
-               Model* _model, OpType _type)
+               std::shared_ptr<Model> _model, OpType _type)
 : numInputs(1), model(_model), type(_type), runtime(0.0f)
 {
   inputs[0] = _input;
@@ -93,7 +93,7 @@ OpBase::OpBase(const Tensor& _input,
 
 OpBase::OpBase(const Tensor& _input0,
                const Tensor& _input1,
-               Model* _model, OpType _type)
+               std::shared_ptr<Model> _model, OpType _type)
 : numInputs(2), model(_model), type(_type), runtime(0.0f)
 {
   inputs[0] = _input0;
@@ -108,7 +108,7 @@ OpBase::OpBase(const Tensor& _input0,
 OpBase::OpBase(const Tensor& _input0,
                const Tensor& _input1,
                const Tensor& _input2,
-               Model* _model, OpType _type)
+               std::shared_ptr<Model> _model, OpType _type)
 : numInputs(3), model(_model), type(_type), runtime(0.0f)
 {
   inputs[0] = _input0;
@@ -125,7 +125,7 @@ OpBase::OpBase(const Tensor& _input0,
                const Tensor& _input1,
                const Tensor& _input2,
                const Tensor& _input3,
-               Model* _model, OpType _type)
+               std::shared_ptr<Model> _model, OpType _type)
 : numInputs(5), model(_model), type(_type), runtime(0.0f)
 {
   inputs[0] = _input0;
@@ -145,7 +145,7 @@ OpBase::OpBase(const Tensor& _input0,
                const Tensor& _input2,
                const Tensor& _input3,
                const Tensor& _input4,
-               Model* _model, OpType _type)
+               std::shared_ptr<Model> _model, OpType _type)
 : numInputs(5), model(_model), type(_type), runtime(0.0f)
 {
   inputs[0] = _input0;
@@ -160,7 +160,7 @@ OpBase::OpBase(const Tensor& _input0,
   }
 }
 
-OpBase::OpBase(int n, Tensor* _inputs, Model* _model, OpType _type)
+OpBase::OpBase(int n, Tensor* _inputs, std::shared_ptr<Model> _model, OpType _type)
 : numInputs(n), model(_model), type(_type), runtime(0.0f)
 {
   assert(n <= MAX_NUM_INPUTS);
@@ -230,7 +230,7 @@ bool OpBase::get_input_parameter(TNParameter tnp, DIMParameter dim, int* value)
   return true;
 }
 
-std::string Op::op_to_string(const OpBase* ptr)
+std::string Op::op_to_string(const std::shared_ptr<OpBase> ptr)
 {
   switch (ptr->type) {
     case OP_INPUT:
@@ -342,13 +342,13 @@ std::string Op::op_to_string(const OpBase* ptr)
   }
 }
 
-static Model* model_singleton = NULL;
+static std::shared_ptr<Model> model_singleton = NULL;
 
 Graph::Graph()
 : totalCost(-1.0f)
 {
   if (model_singleton == NULL) {
-    model_singleton = new Model();
+    model_singleton = std::shared_ptr<Model>(new Model());
   }
   model = model_singleton;
   model->print_cost = false;
@@ -364,7 +364,7 @@ void Graph::print_measurements(void)
 
 TensorHandle Graph::new_input(int ndim, const int* dims)
 {
-  TensorHandle t = new Tensor(ndim, dims, GUID_INPUT);
+  TensorHandle t = std::shared_ptr<Tensor>(new Tensor(ndim, dims, GUID_INPUT));
   t = input_wrapper(t);
   return t;
 }
@@ -376,14 +376,14 @@ TensorHandle Graph::new_weight(int ndim, const int* dims, const DATATYPE* weight
   for (int i = 0; i < ndim; i++)
     total_size *= dims[i];
   weight_ptr = (DATATYPE*) model->allocate_memory(total_size, weight_initial);
-  TensorHandle t = new Tensor(ndim, dims, GUID_WEIGHT, weight_ptr);
+  TensorHandle t = std::shared_ptr<Tensor>(new Tensor(ndim, dims, GUID_WEIGHT, weight_ptr));
   t = weight_wrapper(t);
   return t;
 }
 
 TensorHandle Graph::new_weight(const Tensor& weight)
 {
-  TensorHandle t = new Tensor(weight);
+  TensorHandle t = std::shared_ptr<Tensor>(new Tensor(weight));
   t->op.guid = GUID_WEIGHT;
   t->op.ptr = NULL;
   t->idx = 0;
@@ -393,9 +393,9 @@ TensorHandle Graph::new_weight(const Tensor& weight)
   return t;
 }
 
-Graph* Graph::optimize(float alpha, int budget, bool print_subst)
+std::shared_ptr<Graph> Graph::optimize(float alpha, int budget, bool print_subst)
 {
-  std::vector<GraphXfer*> xfers;
+  std::vector<std::shared_ptr<GraphXfer>> xfers;
   for (int i = 1; i < 3; i++)
     for (int j = 0; j < 2; j++) {
       PaddingMode pad_mode = (j == 0) ? PD_MODE_SAME : PD_MODE_VALID;
@@ -429,11 +429,11 @@ Graph* Graph::optimize(float alpha, int budget, bool print_subst)
   //xfers.push_back(create_enlarge_conv_xfer(model));
   //xfers.push_back(create_resnet_merge_xfer(model));
 
-  std::priority_queue<Graph*, std::vector<Graph*>, GraphCompare> candidates;
+  std::priority_queue<std::shared_ptr<Graph>, std::vector<std::shared_ptr<Graph>>, GraphCompare> candidates;
   std::set<size_t> hashmap;
-  candidates.push(this);
+  candidates.push(shared_from_this());
   hashmap.insert(hash());
-  Graph *bestGraph = this;
+  std::shared_ptr<Graph> bestGraph = shared_from_this();
   float bestCost = total_cost();
   //printf("MetaFlow Cost = %.4lfms\n", bestCost);
   //printf("Input graph: end-to-end execution time =\n"
@@ -447,10 +447,10 @@ Graph* Graph::optimize(float alpha, int budget, bool print_subst)
   timer_fs.open("timer.txt");
   printf("\n        ===== Start Cost-Based Backtracking Search =====\n");
   while (!candidates.empty()) {
-    Graph *subGraph = candidates.top();
+    std::shared_ptr<Graph> subGraph = candidates.top();
     candidates.pop();
     if (subGraph->total_cost() < bestCost) {
-      delete bestGraph;
+      delete &bestGraph;
       bestCost = subGraph->total_cost();
       bestGraph = subGraph;
     }
@@ -473,7 +473,7 @@ Graph* Graph::optimize(float alpha, int budget, bool print_subst)
       xfers[i]->run(0, subGraph, candidates, hashmap, bestCost * alpha, 2 * maxNumOps);
     }
     if (bestGraph != subGraph) {
-      delete subGraph;
+      delete &subGraph;
     }
   }
   bestGraph = bestGraph->preprocess_weights();
@@ -498,9 +498,9 @@ Graph* Graph::optimize(float alpha, int budget, bool print_subst)
   return bestGraph;
 }
 
-Graph* Graph::preprocess_weights(void)
+std::shared_ptr<Graph> Graph::preprocess_weights(void)
 {
-  Graph* newGraph = new Graph();
+  std::shared_ptr<Graph> newGraph = std::shared_ptr<Graph>(new Graph());
   newGraph->subst_history = subst_history;
   std::map<Op, std::set<Edge, EdgeCompare>, OpCompare>::const_iterator opIt;
   // Step 1: clone the input graph
@@ -718,7 +718,7 @@ int Graph::get_split_lens(size_t guid, int* lens)
 {
   Op op = find_op_or_fail(guid);
   assert(op.ptr->type == OP_SPLIT);
-  Split* split = (Split*) op.ptr;
+  std::shared_ptr<Split> split = std::dynamic_pointer_cast<Split> (op.ptr);
   int numSplits = split->numOutputs;
   for (int i = 0; i < numSplits; i++)
     lens[i] = split->outputs[i].dim[split->axis];
@@ -853,7 +853,7 @@ void Graph::export_op(ofstream &file_stream, Op &op)
   switch (op.ptr->type) {
     case OP_CONV2D:
     { 
-      Conv2D* conv = (Conv2D*) op.ptr;
+      std::shared_ptr<Conv2D> conv = std::dynamic_pointer_cast<Conv2D> (op.ptr);
       Tensor t = conv->inputs[0];
       Tensor w = conv->inputs[1];
       int padH, padW;
@@ -877,7 +877,7 @@ void Graph::export_op(ofstream &file_stream, Op &op)
     case OP_POOL2D_MAX:
     case OP_POOL2D_AVG:
     {
-      Pool2D* pool = (Pool2D*) op.ptr;
+      std::shared_ptr<Pool2D> pool = std::dynamic_pointer_cast<Pool2D> (op.ptr);
       Tensor t = pool->inputs[0];
       int padH, padW;
       pool->get_padding(&padH, &padW);
@@ -898,7 +898,7 @@ void Graph::export_op(ofstream &file_stream, Op &op)
     }
     case OP_SPLIT:
     {
-      Split* split = (Split*) op.ptr;
+      std::shared_ptr<Split> split = std::dynamic_pointer_cast<Split> (op.ptr);
       file_stream << split->axis << ',';
       for (int i = 0; i < split->numOutputs; i++)
       {
@@ -912,7 +912,7 @@ void Graph::export_op(ofstream &file_stream, Op &op)
     }
     case OP_CONCAT:
     {
-      Concat* concat = (Concat*) op.ptr;
+      std::shared_ptr<Concat> concat = std::dynamic_pointer_cast<Concat> (op.ptr);
       file_stream << concat->axis;
       //TODO: fix below for visualizer
       //Tensor t = concat->inputs[0];
@@ -944,7 +944,7 @@ void Graph::export_op(ofstream &file_stream, Op &op)
     }
     case OP_MATMUL: // This doesn't seem to be implemented in run either
     {
-      Matmul* matmul = (Matmul*) op.ptr;
+      std::shared_ptr<Matmul> matmul = std::dynamic_pointer_cast<Matmul> (op.ptr);
       file_stream << matmul->activation << ','; // 0
       file_stream << matmul->outputs[0].numDim; // 1
       break;
@@ -965,7 +965,7 @@ void Graph::export_op(ofstream &file_stream, Op &op)
     }
     case OP_TRANSPOSE:
     {
-      Transpose *transpose = (Transpose*) op.ptr;
+      std::shared_ptr<Transpose> transpose = std::dynamic_pointer_cast<Transpose> (op.ptr);
       Tensor t = op.ptr->outputs[0];
       int permIdx = transpose->permIdx;
       int ndim = t.numDim;
@@ -1011,12 +1011,12 @@ size_t Graph::hash(void)
   size_t total = 0;
   std::map<Op, std::set<Edge, EdgeCompare>, OpCompare>::const_iterator it;
   for (it = inEdges.begin(); it != inEdges.end(); it++) {
-    size_t my = 17 * 31 + (size_t)(it->first.ptr);
+    size_t my = 17 * 31 + (size_t)std::hash<std::shared_ptr<OpBase>>{}(it->first.ptr);
     std::set<Edge, EdgeCompare> list = it->second;
     std::set<Edge, EdgeCompare>::const_iterator it2;
     for (it2 = list.begin(); it2 != list.end(); it2++) {
       Edge e = *it2;
-      my = my * 31 + std::hash<size_t>()((size_t)(e.srcOp.ptr));
+      my = my * 31 + std::hash<size_t>()((size_t)std::hash<std::shared_ptr<OpBase>>{}(e.srcOp.ptr));
       my = my * 31 + std::hash<int>()(e.srcIdx);
       my = my * 31 + std::hash<int>()(e.dstIdx);
     }
@@ -1130,7 +1130,7 @@ float Graph::run(void)
   std::map<Op, int, OpCompare> todos;
   std::map<Op, std::set<Edge, EdgeCompare>, OpCompare>::const_iterator it;
   std::vector<Op> opList;
-  std::vector<OpBase*> opBaseList;
+  std::vector<std::shared_ptr<OpBase>> opBaseList;
   for (it = inEdges.begin(); it != inEdges.end(); it++) {
     int cnt = 0;
     std::set<Edge, EdgeCompare> inList = it->second;
@@ -1149,7 +1149,7 @@ float Graph::run(void)
     std::set<Edge, EdgeCompare> inList = inEdges[op];
     std::set<Edge, EdgeCompare>::const_iterator it2;
     assert(inList.size() > 0);
-    OpBase* opPtr = NULL;
+    std::shared_ptr<OpBase> opPtr = nullptr;
     // Step 1: prepare inputs
     Tensor inputs[MAX_NUM_INPUTS];
     if ((op.ptr->type == OP_INPUT) || (op.ptr->type == OP_WEIGHT)) {
@@ -1207,36 +1207,36 @@ float Graph::run(void)
     switch (op.ptr->type) {
       case OP_CONV2D:
       {
-        Conv2D* conv = (Conv2D*) op.ptr;
+        std::shared_ptr<Conv2D> conv = std::dynamic_pointer_cast<Conv2D> (op.ptr);
         assert(inList.size() == 2);
-        opPtr = new Conv2D(model, inputs[0], inputs[1],
+        opPtr = std::shared_ptr<Conv2D>(new Conv2D(model, inputs[0], inputs[1],
                            conv->strideH, conv->strideW,
-                           conv->padding, conv->activation);
+                           conv->padding, conv->activation));
 #ifdef USE_CUDNN
-        ((Conv2D*)opPtr)->fwdAlgo = conv->fwdAlgo;
+          (std::dynamic_pointer_cast<Conv2D>(opPtr))->fwdAlgo = conv->fwdAlgo;
 #endif
         break;
       }
       case OP_MATMUL:
       {
-        Matmul* matmul = (Matmul*) op.ptr;
+        std::shared_ptr<Matmul> matmul = std::dynamic_pointer_cast<Matmul> (op.ptr);
         assert(inList.size() == 2);
-        opPtr = new Matmul(model, inputs[0], inputs[1], matmul->activation);
+        opPtr = std::shared_ptr<Matmul>(new Matmul(model, inputs[0], inputs[1], matmul->activation));
         break;
       }
       case OP_RESHAPE:
       {
-        Reshape* reshape = (Reshape*) op.ptr;
+        std::shared_ptr<Reshape> reshape = std::dynamic_pointer_cast<Reshape> (op.ptr);
         assert(inList.size() == 1);
         std::vector<int> shape;
         for (int i = 0; i < reshape->outputs[0].numDim; i++)
           shape.push_back(reshape->outputs[0].dim[i]);
-        opPtr = new Reshape(model, inputs[0], shape);
+        opPtr = std::shared_ptr<Reshape>(new Reshape(model, inputs[0], shape));
         break;
       }
       case OP_TRANSPOSE:
       {
-        Transpose* transpose = (Transpose*) op.ptr;
+        std::shared_ptr<Transpose> transpose = std::dynamic_pointer_cast<Transpose> (op.ptr);
         assert(inList.size() == 1);
         int ndim = inputs[0].numDim, permIdx = transpose->permIdx;
         std::vector<int> permVec;
@@ -1251,7 +1251,7 @@ float Graph::run(void)
             assert(permArray[i] != permArray[j]);
         for (int i = 0; i < ndim; i++)
           permVec.push_back(permArray[i]);
-        opPtr = new Transpose(model, inputs[0], permVec, transpose->shuffle);
+        opPtr = std::shared_ptr<Transpose>(new Transpose(model, inputs[0], permVec, transpose->shuffle));
         break;
       }
       case OP_EW_ADD:
@@ -1259,54 +1259,54 @@ float Graph::run(void)
       {
         //Element* element = (Element*) op.ptr;
         assert(inList.size() == 2);
-        opPtr = new Element(model, op.ptr->type, inputs[0], inputs[1]);
+        opPtr = std::shared_ptr<Element>(new Element(model, op.ptr->type, inputs[0], inputs[1]));
         break;
       }
       case OP_ENLARGE:
       {
         //Enlarge* enlarge = (Enlarge*) op.ptr;
         assert(inList.size() == 2);
-        opPtr = new Enlarge(model, inputs[0], inputs[1]);
+        opPtr = std::shared_ptr<Enlarge>(new Enlarge(model, inputs[0], inputs[1]));
         break;
       }
       case OP_MERGE_GCONV:
       {
-        MergeGConv* merge = (MergeGConv*) op.ptr;
+        std::shared_ptr<MergeGConv> merge = std::dynamic_pointer_cast<MergeGConv> (op.ptr);
         assert(inList.size() == 1);
-        opPtr = new MergeGConv(model, inputs[0], merge->count);
+        opPtr = std::shared_ptr<MergeGConv>(new MergeGConv(model, inputs[0], merge->count));
         break;
       }
       case OP_POOL2D_MAX:
       case OP_POOL2D_AVG:
       {
-        Pool2D* pool = (Pool2D*) op.ptr;
+        std::shared_ptr<Pool2D> pool = std::dynamic_pointer_cast<Pool2D> (op.ptr);
         assert(inList.size() == 2);
-        opPtr = new Pool2D(model, inputs[0], inputs[1], pool->type,
+        opPtr = std::shared_ptr<Pool2D>(new Pool2D(model, inputs[0], inputs[1], pool->type,
                            pool->kernelH, pool->kernelW,
                            pool->strideH, pool->strideW,
-                           pool->padding, pool->activation);
+                           pool->padding, pool->activation));
         break;
       }
       case OP_RELU:
       case OP_SIGMOID:
       case OP_TANH:
       {
-        Activation* act = (Activation*) op.ptr;
+        std::shared_ptr<Activation> act = std::dynamic_pointer_cast<Activation> (op.ptr);
         assert(inList.size() == 1);
-        opPtr = new Activation(model, inputs[0], act->type, act->inPlace);
+        opPtr = std::shared_ptr<Activation>(new Activation(model, inputs[0], act->type, act->inPlace));
         break;
       }
       case OP_BATCHNORM:
       {
         assert(inList.size() == 5);
-        opPtr = new BatchNorm(model, inputs[0], inputs[1], inputs[2], inputs[3], inputs[4]);
+        opPtr = std::shared_ptr<BatchNorm>(new BatchNorm(model, inputs[0], inputs[1], inputs[2], inputs[3], inputs[4]));
         break;
       }
       case OP_SPLIT:
       {
-        Split* split = (Split*) op.ptr;
+        std::shared_ptr<Split> split = std::dynamic_pointer_cast<Split> (op.ptr);
         assert(inList.size() == 1);
-        opPtr = new Split(model, inputs[0], split->axis, split->sizes);
+        opPtr = std::shared_ptr<Split>(new Split(model, inputs[0], split->axis, split->sizes));
         break;
       }
       case OP_INPUT:
@@ -1314,13 +1314,13 @@ float Graph::run(void)
       case OP_DROPOUT:
       {
         assert(inList.size() == 1);
-        opPtr = new NoOp(model, inputs[0], op.ptr->type);
+        opPtr = std::shared_ptr<NoOp>(new NoOp(model, inputs[0], op.ptr->type));
         break;
       }
       case OP_CONCAT:
       {
-        Concat* concat = (Concat*) op.ptr;
-        opPtr = new Concat(model, concat->axis, inList.size(), inputs, concat->needCopy);
+        std::shared_ptr<Concat> concat = std::dynamic_pointer_cast<Concat> (op.ptr);
+        opPtr = std::shared_ptr<Concat>(new Concat(model, concat->axis, inList.size(), inputs, concat->needCopy));
         break;
       }
       default:
@@ -1360,6 +1360,254 @@ float Graph::run(void)
   assert(opList.size() == opBaseList.size());
 
   return model->measure_oplist_runtime(opBaseList);
+}
+
+
+float Graph::run_memorysafe(void)
+{
+    std::map<Op, int, OpCompare> todos;
+    std::map<Op, std::set<Edge, EdgeCompare>, OpCompare>::const_iterator it;
+    std::vector<Op> opList;
+    std::vector<std::shared_ptr<OpBase>> opBaseList;
+    for (it = inEdges.begin(); it != inEdges.end(); it++) {
+        int cnt = 0;
+        std::set<Edge, EdgeCompare> inList = it->second;
+        std::set<Edge, EdgeCompare>::const_iterator it2;
+        for (it2 = inList.begin(); it2 != inList.end(); it2++) {
+            if (it2->srcOp.guid > GUID_PRESERVED) cnt ++;
+        }
+        todos[it->first] = cnt;
+        if (todos[it->first] == 0)
+            opList.push_back(it->first);
+    }
+    size_t i = 0;
+    while (i < opList.size()) {
+        Op op = opList[i++];
+        std::set<Edge, EdgeCompare> outList = outEdges[op];
+        std::set<Edge, EdgeCompare> inList = inEdges[op];
+        std::set<Edge, EdgeCompare>::const_iterator it2;
+        assert(inList.size() > 0);
+        std::shared_ptr<OpBase> opPtr = NULL;
+        // Step 1: prepare inputs
+        Tensor inputs[MAX_NUM_INPUTS];
+        if ((op.ptr->type == OP_INPUT) || (op.ptr->type == OP_WEIGHT)) {
+            assert(inList.size() == 1);
+            //Edge e = *inList.begin();
+            //assert(e.srcOp.ptr == NULL); // NoOp's input must not be any Op
+            Tensor t = op.ptr->inputs[0];
+            size_t size = sizeof(DATATYPE);
+            for (int j = 0; j < t.numDim; j++)
+                size *= t.dim[j];
+            if (op.ptr->type == OP_INPUT) {
+                assert(t.data_ptr == NULL);
+                t.data_ptr = (DATATYPE*) model->allocate_memory(size);
+            } else {
+                assert(t.data_ptr != NULL);
+            }
+            inputs[0] = t;
+        } else {
+            for (it2 = inList.begin(); it2 != inList.end(); it2++) {
+                size_t idx2 = 0;
+                for (idx2 = 0; idx2 < opList.size(); idx2++) {
+                    if (opList[idx2].guid == it2->srcOp.guid) break;
+                }
+                assert(idx2 < i);
+                assert(inputs[it2->dstIdx].data_ptr == NULL); // No duplicated dstIdxes
+                inputs[it2->dstIdx] = opBaseList[idx2]->outputs[it2->srcIdx];
+            }
+        }
+#ifdef DEADCODE
+        // Step 1: prepare inputs
+    for (it2 = inList.begin(); it2 != inList.end(); it2++) {
+      Edge e = *it2;
+      if (e.srcOp.guid == GUID_INPUT) {
+        Tensor t = op.ptr->inputs[e.dstIdx];
+        t.ptr = (DATATYPE*) model->allocate_memory(sizeof(DATATYPE) * t.size());
+        assert(inputs[e.dstIdx].ptr == NULL); // No duplicated dstIdxes
+        inputs[e.dstIdx] = t;
+      } else if (e.srcOp.guid = GUID_WEIGHT) {
+        Tensor t = op.ptr->inputs[e.dstIdx];
+        t.ptr = (DATATYPE*) model->allocate_memory(sizeof(DATATYPE) * t.size());
+        assert(inputs[e.dstIdx].ptr == NULL); // No duplicated dstIdxes
+        inputs[e.dstIdx] = t;
+      } else {
+        size_t idx2 = 0;
+        for (idx2 = 0; idx2 < opList.size(); idx2++) {
+          if (opList[idx2].guid == e.srcOp.guid) break;
+        }
+        assert(idx2 < i);
+        assert(inputs[e.dstIdx].ptr == NULL); // No duplicated dstIdxes
+        inputs[e.dstIdx] = opBaseList[idx2]->outputs[it2->srcIdx];
+      }
+    }
+#endif
+        // Step 2: create Ops
+        switch (op.ptr->type) {
+            case OP_CONV2D:
+            {
+                std::shared_ptr<Conv2D> conv = std::dynamic_pointer_cast<Conv2D> (op.ptr);
+                assert(inList.size() == 2);
+                opPtr = std::shared_ptr<Conv2D>(new Conv2D(model, inputs[0], inputs[1],
+                                   conv->strideH, conv->strideW,
+                                   conv->padding, conv->activation));
+#ifdef USE_CUDNN
+                (std::dynamic_pointer_cast<Conv2D>(opPtr))->fwdAlgo = conv->fwdAlgo;
+#endif
+                break;
+            }
+            case OP_MATMUL:
+            {
+                std::shared_ptr<Matmul> matmul = std::dynamic_pointer_cast<Matmul> (op.ptr);
+                assert(inList.size() == 2);
+                opPtr = std::shared_ptr<Matmul>(new Matmul(model, inputs[0], inputs[1], matmul->activation));
+                break;
+            }
+            case OP_RESHAPE:
+            {
+                std::shared_ptr<Reshape> reshape = std::dynamic_pointer_cast<Reshape> (op.ptr);
+                assert(inList.size() == 1);
+                std::vector<int> shape;
+                for (int i = 0; i < reshape->outputs[0].numDim; i++)
+                    shape.push_back(reshape->outputs[0].dim[i]);
+                opPtr = std::shared_ptr<Reshape>(new Reshape(model, inputs[0], shape));
+                break;
+            }
+            case OP_TRANSPOSE:
+            {
+                std::shared_ptr<Transpose> transpose = std::dynamic_pointer_cast<Transpose> (op.ptr);
+                assert(inList.size() == 1);
+                int ndim = inputs[0].numDim, permIdx = transpose->permIdx;
+                std::vector<int> permVec;
+                int permArray[MAX_DIM];
+                for (int i = ndim - 1; i >= 0; i--) {
+                    permArray[i] = permIdx % ndim;
+                    permIdx = permIdx / ndim;
+                }
+                assert(permIdx == 0);
+                for (int i = 0; i < ndim; i++)
+                    for (int j = i + 1; j < ndim; j++)
+                        assert(permArray[i] != permArray[j]);
+                for (int i = 0; i < ndim; i++)
+                    permVec.push_back(permArray[i]);
+                opPtr = std::shared_ptr<Transpose>(new Transpose(model, inputs[0], permVec, transpose->shuffle));
+                break;
+            }
+            case OP_EW_ADD:
+            case OP_EW_MUL:
+            {
+                //Element* element = (Element*) op.ptr;
+                assert(inList.size() == 2);
+                opPtr = std::shared_ptr<Element>(new Element(model, op.ptr->type, inputs[0], inputs[1]));
+                break;
+            }
+            case OP_ENLARGE:
+            {
+                //Enlarge* enlarge = (Enlarge*) op.ptr;
+                assert(inList.size() == 2);
+                opPtr = std::shared_ptr<Enlarge>(new Enlarge(model, inputs[0], inputs[1]));
+                break;
+            }
+            case OP_MERGE_GCONV:
+            {
+                std::shared_ptr<MergeGConv> merge = std::dynamic_pointer_cast<MergeGConv> (op.ptr);
+                assert(inList.size() == 1);
+                opPtr = std::shared_ptr<MergeGConv>(new MergeGConv(model, inputs[0], merge->count));
+                break;
+            }
+            case OP_POOL2D_MAX:
+            case OP_POOL2D_AVG:
+            {
+                std::shared_ptr<Pool2D> pool = std::dynamic_pointer_cast<Pool2D> (op.ptr);
+                assert(inList.size() == 2);
+                opPtr = std::shared_ptr<Pool2D>(new Pool2D(model, inputs[0], inputs[1], pool->type,
+                                   pool->kernelH, pool->kernelW,
+                                   pool->strideH, pool->strideW,
+                                   pool->padding, pool->activation));
+                break;
+            }
+            case OP_RELU:
+            case OP_SIGMOID:
+            case OP_TANH:
+            {
+                std::shared_ptr<Activation> act = std::dynamic_pointer_cast<Activation> (op.ptr);
+                assert(inList.size() == 1);
+                opPtr = std::shared_ptr<Activation>(new Activation(model, inputs[0], act->type, act->inPlace));
+                break;
+            }
+            case OP_BATCHNORM:
+            {
+                assert(inList.size() == 5);
+                opPtr = std::shared_ptr<BatchNorm>(new BatchNorm(model, inputs[0], inputs[1], inputs[2], inputs[3], inputs[4]));
+                break;
+            }
+            case OP_SPLIT:
+            {
+                std::shared_ptr<Split> split = std::dynamic_pointer_cast<Split> (op.ptr);
+                assert(inList.size() == 1);
+                opPtr = std::shared_ptr<Split>(new Split(model, inputs[0], split->axis, split->sizes));
+                break;
+            }
+            case OP_INPUT:
+            case OP_WEIGHT:
+            case OP_DROPOUT:
+            {
+                assert(inList.size() == 1);
+                opPtr = std::shared_ptr<NoOp>(new NoOp(model, inputs[0], op.ptr->type));
+                break;
+            }
+            case OP_CONCAT:
+            {
+                std::shared_ptr<Concat> concat = std::dynamic_pointer_cast<Concat> (op.ptr);
+                opPtr = std::shared_ptr<Concat>(new Concat(model, concat->axis, inList.size(), inputs, concat->needCopy));
+                break;
+            }
+            default:
+                printf("op.type = %d\n", op.ptr->type);
+                assert(false);
+        }
+        // Step 3: map new Op
+        opPtr->map();
+        opBaseList.push_back(opPtr);
+        for (it2 = outList.begin(); it2 != outList.end(); it2++) {
+            todos[it2->dstOp] --;
+            //printf("myOp(%zu) dstOp(%zu) dstType(%d) dstTodos(%d)\n",
+            //    it2->srcOp.guid, it2->dstOp.guid,
+            //    it2->dstOp.ptr->type, todos[it2->dstOp]);
+            if (todos[it2->dstOp] == 0) {
+                opList.push_back(it2->dstOp);
+            }
+        }
+    }
+#ifdef VERBOSE_PRINTS
+    for (int i =0; i < opList.size(); i++) {
+    printf("opList[%d]: guid(%zu) type(%d)\n", i, opList[i].guid,
+           opList[i].ptr->type);
+  }
+  for (it = inEdges.begin(); it != inEdges.end(); it++) {
+    printf("op: guid(%zu) type(%d)\n", it->first.guid, it->first.ptr->type);
+    std::set<Edge, EdgeCompare> inList = it->second;
+    std::set<Edge, EdgeCompare>::const_iterator it2;
+    int cnt = 0;
+    for (it2 = inList.begin(); it2 != inList.end(); it2++) {
+      printf("    inEdge[%d]: srcOp(%zu) srcIdx(%d) dstOp(%zu) dstIdx(%d)\n", cnt++, it2->srcOp.guid, it2->srcIdx, it2->dstOp.guid, it2->dstIdx);
+    }
+  }
+#endif
+
+    assert(opList.size() == inEdges.size());
+    assert(opList.size() == opBaseList.size());
+
+    float result = model->measure_oplist_runtime(opBaseList);
+
+    // Now free GPU memory from the opList
+    for (int i = 0; i < opBaseList.size(); i++) {
+      std::shared_ptr<OpBase> opBase = opBaseList[i];
+      opBase->unmap();
+      //free(opBase); maybe need something like this?
+      //opBase = nullptr;
+    }
+
+    return result;
 }
 
 void Graph::print_costs(void)

@@ -35,7 +35,7 @@ void Reshape::forward(bool block)
     checkCUDA(cudaDeviceSynchronize());
 }
 
-void Model::measure_reshape_cost(Reshape* reshape)
+void Model::measure_reshape_cost(std::shared_ptr<Reshape> reshape)
 {
   // FIXME: assume the cost is zero for now
   reshape->runtime = 0;

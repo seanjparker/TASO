@@ -70,7 +70,7 @@ void Activation::forward(bool block)
     checkCUDA(cudaDeviceSynchronize());
 }
 
-void Model::measure_activation_cost(Activation* act)
+void Model::measure_activation_cost(std::shared_ptr<Activation> act)
 {
   const float alpha = 1.0f;
   const float beta = 0.0f;

@@ -22,7 +22,7 @@ TensorHandle Graph::broadcast_add(const TensorHandle _data,
   Op op = model->get_or_create_broadcast_add(*_data, *_bias);
   add_edge(_data->op, op, _data->idx, 0);
   add_edge(_bias->op, op, _bias->idx, 1);
-  TensorHandle t = new Tensor(op.ptr->outputs[0]);
+  TensorHandle t = std::shared_ptr<Tensor>(new Tensor(op.ptr->outputs[0]));
   t->op = op;
   return t;
 }
@@ -30,11 +30,11 @@ TensorHandle Graph::broadcast_add(const TensorHandle _data,
 Op Model::get_or_create_broadcast_add(const Tensor& _data, const Tensor& _bias)
 {
   BroadcastAddKey key(_data);
-  BroadcastAdd* newop;
+  std::shared_ptr<BroadcastAdd> newop;
   if (broadcast_add.find(key) != broadcast_add.end()) {
     newop = broadcast_add[key];
   } else {
-    newop = new BroadcastAdd(this, _data, _bias);
+    newop = std::shared_ptr<BroadcastAdd>(new BroadcastAdd(shared_from_this(), _data, _bias));
     //Assign a zero cost since it can be preprocessed
     // measure_fuse_conv_batchnorm_cost(fuseOp);
     newop->runtime = 0.0f;
@@ -46,7 +46,7 @@ Op Model::get_or_create_broadcast_add(const Tensor& _data, const Tensor& _bias)
   return ret;
 }
 
-BroadcastAdd::BroadcastAdd(Model* _model, const Tensor& _data, const Tensor& _bias)
+BroadcastAdd::BroadcastAdd(std::shared_ptr<Model> _model, const Tensor& _data, const Tensor& _bias)
 : OpBase(_data, _bias, _model, OP_BROADCAST_ADD)
 {
   assert(_data.numDim == 4);

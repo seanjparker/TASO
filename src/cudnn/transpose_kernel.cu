@@ -33,7 +33,7 @@ void Transpose::forward(bool block)
     checkCUDA(cudaDeviceSynchronize());
 }
 
-void Model::measure_transpose_cost(Transpose* transpose)
+void Model::measure_transpose_cost(std::shared_ptr<Transpose> transpose)
 {
   // Transpose requires no kernel launch
   transpose->runtime = 0;

@@ -52,7 +52,7 @@ TensorHandle Graph::elementwise_unary(const TensorHandle _input,
   Op op = model->get_or_create_elementwise_unary(*_input, _type);
   assert(op != Op::INVALID_OP);
   add_edge(_input->op, op, _input->idx, 0);
-  TensorHandle t = new Tensor(op.ptr->outputs[0]);
+  TensorHandle t = std::shared_ptr<Tensor>(new Tensor(op.ptr->outputs[0]));
   t->op = op;
   return t;
 }
@@ -60,11 +60,11 @@ TensorHandle Graph::elementwise_unary(const TensorHandle _input,
 Op Model::get_or_create_elementwise_unary(const Tensor& _input, OpType _type)
 {
   ElementWiseUnaryKey key(_input, _type);
-  ElementWiseUnary* unaryOp;
+  std::shared_ptr<ElementWiseUnary> unaryOp;
   if (element_unary.find(key) != element_unary.end()) {
     unaryOp = element_unary[key];
   } else {
-    unaryOp = new ElementWiseUnary(this, _input, _type);
+    unaryOp = std::shared_ptr<ElementWiseUnary>(new ElementWiseUnary(shared_from_this(), _input, _type));
     measure_elementwise_unary_cost(unaryOp);
     element_unary[key] = unaryOp;
   }
@@ -74,7 +74,7 @@ Op Model::get_or_create_elementwise_unary(const Tensor& _input, OpType _type)
   return ret;
 }
 
-ElementWiseUnary::ElementWiseUnary(Model* _model, const Tensor& _input,
+ElementWiseUnary::ElementWiseUnary(std::shared_ptr<Model> _model, const Tensor& _input,
                                    OpType _type)
 : OpBase(_input, _model, _type)
 {

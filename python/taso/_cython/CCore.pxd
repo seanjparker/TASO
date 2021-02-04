@@ -167,7 +167,7 @@ cdef extern from "taso/ops.h" namespace "taso":
 #        void* ptr
 #        SplitInfo split[MAX_DIM]
 
-    ctypedef Tensor* TensorHandle
+    ctypedef shared_ptr[Tensor] TensorHandle
 
     cdef cppclass Graph:
         Graph()
@@ -270,3 +270,4 @@ cdef extern from "taso/ops.h" namespace "taso":
         void print_measurements()
         float total_cost()
         float run()
+        float run_memorysafe()

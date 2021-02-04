@@ -16,15 +16,15 @@
 #include "taso/substitution.h"
 using namespace taso;
 
-GraphXfer* create_avg_pool_conv(Model* model)
+std::shared_ptr<GraphXfer> create_avg_pool_conv(std::shared_ptr<Model> model)
 {
-  GraphXfer* subst = new GraphXfer(model);
+  std::shared_ptr<GraphXfer> subst = std::shared_ptr<GraphXfer>(new GraphXfer(model));
   TensorX input = subst->new_tensor();
   TensorX weight = subst->new_tensor();
-  OpX* avg_pool = subst->create_pool2d_avg(input, weight, 1, 1,
+  std::shared_ptr<OpX> avg_pool = subst->create_pool2d_avg(input, weight, 1, 1,
                                            PD_MODE_SAME,
                                            AC_MODE_NONE);
-  OpX* conv = subst->create_conv2d(input, weight, 1, 1,
+  std::shared_ptr<OpX> conv = subst->create_conv2d(input, weight, 1, 1,
                                    PD_MODE_SAME,
                                    AC_MODE_NONE, false/*isSrc*/);
   subst->map_output(avg_pool->outputs[0], conv->outputs[0]);
@@ -33,21 +33,21 @@ GraphXfer* create_avg_pool_conv(Model* model)
   return subst;
 }
 
-GraphXfer* create_two_pools(Model* model)
+std::shared_ptr<GraphXfer> create_two_pools(std::shared_ptr<Model> model)
 {
-  GraphXfer* subst = new GraphXfer(model);
+    std::shared_ptr<GraphXfer> subst = std::shared_ptr<GraphXfer>(new GraphXfer(model));
   TensorX input = subst->new_tensor();
   TensorX w1 = subst->new_tensor();
   //TensorX w2 = subst->new_tensor();
-  OpX* pool1 = subst->create_pool2d_avg(input, w1, 1, 1,
+  std::shared_ptr<OpX> pool1 = subst->create_pool2d_avg(input, w1, 1, 1,
                                         PD_MODE_SAME,
                                         AC_MODE_NONE);
-  //OpX* pool2 = subst->create_pool2d_avg(input, w2, 1, 1,
+  //std::shared_ptr<OpX> pool2 = subst->create_pool2d_avg(input, w2, 1, 1,
   //                                      PD_MODE_SAME,
   //                                      AC_MODE_NONE);
-  //OpX* add = subst->create_element(pool1->outputs[0], pool2->outputs[0],
+  //std::shared_ptr<OpX> add = subst->create_element(pool1->outputs[0], pool2->outputs[0],
   //                                 OP_EW_ADD);
-  OpX* pool3 = subst->create_conv2d(input, w1, 1, 1,
+  std::shared_ptr<OpX> pool3 = subst->create_conv2d(input, w1, 1, 1,
                                     PD_MODE_SAME,
                                     AC_MODE_NONE, false/*isSrc*/);
   subst->map_output(pool1->outputs[0], pool3->outputs[0]);
@@ -58,15 +58,15 @@ GraphXfer* create_two_pools(Model* model)
   return subst;
 }
 
-GraphXfer* GraphXfer::create_conv_relu(Model* model, int strideH, int strideW, PaddingMode mode)
+std::shared_ptr<GraphXfer> GraphXfer::create_conv_relu(std::shared_ptr<Model> model, int strideH, int strideW, PaddingMode mode)
 {
-  GraphXfer* subst = new GraphXfer(model);
+  std::shared_ptr<GraphXfer> subst = std::shared_ptr<GraphXfer>(new GraphXfer(model));
   TensorX input = subst->new_tensor();
   TensorX weight = subst->new_tensor();
-  OpX* conv = subst->create_conv2d(input, weight, strideH, strideW, mode,
+  std::shared_ptr<OpX> conv = subst->create_conv2d(input, weight, strideH, strideW, mode,
                                    AC_MODE_NONE);
-  OpX* relu = subst->create_activation(conv->outputs[0], OP_RELU);
-  OpX* fuse = subst->create_conv2d(input, weight, strideH, strideW, mode,
+  std::shared_ptr<OpX> relu = subst->create_activation(conv->outputs[0], OP_RELU);
+  std::shared_ptr<OpX> fuse = subst->create_conv2d(input, weight, strideH, strideW, mode,
                                    AC_MODE_RELU, false/*isSrc*/);
   subst->map_output(relu->outputs[0], fuse->outputs[0]);
   subst->srcOps.push_back(conv);
@@ -75,22 +75,22 @@ GraphXfer* GraphXfer::create_conv_relu(Model* model, int strideH, int strideW, P
   return subst;
 }
 
-GraphXfer* GraphXfer::create_conv_batch(Model* model, int strideH, int strideW, PaddingMode mode)
+std::shared_ptr<GraphXfer> GraphXfer::create_conv_batch(std::shared_ptr<Model> model, int strideH, int strideW, PaddingMode mode)
 {
-  GraphXfer* subst = new GraphXfer(model);
+  std::shared_ptr<GraphXfer> subst = std::shared_ptr<GraphXfer>(new GraphXfer(model));
   TensorX input = subst->new_tensor();
   TensorX weight = subst->new_tensor();
   TensorX w[4];
   for (int i = 0; i < 4; i++)
     w[i] = subst->new_tensor();
-  OpX* conv = subst->create_conv2d(input, weight, strideH, strideW, mode, AC_MODE_NONE);
-  OpX* batch = subst->create_batchnorm(conv->outputs[0], w[0], w[1], w[2], w[3]);
-  // OpX* fuse = subst->create_fuse_conv_batchnorm(weight, w[0], w[1], w[2], w[3], false/*isSrc*/);
-  OpX* fuse = subst->create_fuse_conv_batchnorm_alpha_var(weight, w[0], w[3], false/*isSrc*/); // alpha, var
-  OpX* new_conv = subst->create_conv2d(input, fuse->outputs[0], strideH, strideW, mode,
+  std::shared_ptr<OpX> conv = subst->create_conv2d(input, weight, strideH, strideW, mode, AC_MODE_NONE);
+  std::shared_ptr<OpX> batch = subst->create_batchnorm(conv->outputs[0], w[0], w[1], w[2], w[3]);
+  // std::shared_ptr<OpX> fuse = subst->create_fuse_conv_batchnorm(weight, w[0], w[1], w[2], w[3], false/*isSrc*/);
+  std::shared_ptr<OpX> fuse = subst->create_fuse_conv_batchnorm_alpha_var(weight, w[0], w[3], false/*isSrc*/); // alpha, var
+  std::shared_ptr<OpX> new_conv = subst->create_conv2d(input, fuse->outputs[0], strideH, strideW, mode,
                                        AC_MODE_NONE, false/*isSrc*/);
-  OpX* bias = subst->create_fuse_conv_batchnorm_bias(w[0], w[1], w[2], w[3], false);
-  OpX* add = subst->create_broadcast_add(new_conv->outputs[0], bias->outputs[0], false);
+  std::shared_ptr<OpX> bias = subst->create_fuse_conv_batchnorm_bias(w[0], w[1], w[2], w[3], false);
+  std::shared_ptr<OpX> add = subst->create_broadcast_add(new_conv->outputs[0], bias->outputs[0], false);
   subst->map_output(batch->outputs[0], add->outputs[0]);
   subst->srcOps.push_back(conv);
   subst->srcOps.push_back(batch);
@@ -101,15 +101,15 @@ GraphXfer* GraphXfer::create_conv_batch(Model* model, int strideH, int strideW, 
   return subst;
 }
 
-GraphXfer* GraphXfer::create_conv_mul(Model* model, int strideH, int strideW, PaddingMode mode)
+std::shared_ptr<GraphXfer> GraphXfer::create_conv_mul(std::shared_ptr<Model> model, int strideH, int strideW, PaddingMode mode)
 {
-  GraphXfer* subst = new GraphXfer(model);
+  std::shared_ptr<GraphXfer> subst = std::shared_ptr<GraphXfer>(new GraphXfer(model));
   TensorX input = subst->new_tensor();
   TensorX weight = subst->new_tensor();
   TensorX y = subst->new_tensor();
-  OpX* conv = subst->create_conv2d(input, weight, strideH, strideW, mode, AC_MODE_NONE);
-  OpX* mul = subst->create_element(conv->outputs[0], y, OP_EW_MUL);
-  OpX* fuse = subst->create_conv2d(input, weight, strideH, strideW, mode,
+  std::shared_ptr<OpX> conv = subst->create_conv2d(input, weight, strideH, strideW, mode, AC_MODE_NONE);
+  std::shared_ptr<OpX> mul = subst->create_element(conv->outputs[0], y, OP_EW_MUL);
+  std::shared_ptr<OpX> fuse = subst->create_conv2d(input, weight, strideH, strideW, mode,
                                     AC_MODE_NONE, false/*isSrc*/);
   subst->map_output(mul->outputs[0], fuse->outputs[0]);
   subst->srcOps.push_back(conv);
@@ -118,15 +118,15 @@ GraphXfer* GraphXfer::create_conv_mul(Model* model, int strideH, int strideW, Pa
   return subst;
 }
 
-GraphXfer* GraphXfer::create_conv_add(Model* model, int strideH, int strideW, PaddingMode mode)
+std::shared_ptr<GraphXfer> GraphXfer::create_conv_add(std::shared_ptr<Model> model, int strideH, int strideW, PaddingMode mode)
 {
-  GraphXfer* subst = new GraphXfer(model);
+  std::shared_ptr<GraphXfer> subst = std::shared_ptr<GraphXfer>(new GraphXfer(model));
   TensorX input = subst->new_tensor();
   TensorX weight = subst->new_tensor();
   TensorX y = subst->new_tensor();
-  OpX* conv = subst->create_conv2d(input, weight, strideH, strideW, mode, AC_MODE_NONE);
-  OpX* add = subst->create_element(conv->outputs[0], y, OP_EW_ADD);
-  OpX* fuse = subst->create_conv2d(input, weight, strideH, strideW, mode,
+  std::shared_ptr<OpX> conv = subst->create_conv2d(input, weight, strideH, strideW, mode, AC_MODE_NONE);
+  std::shared_ptr<OpX> add = subst->create_element(conv->outputs[0], y, OP_EW_ADD);
+  std::shared_ptr<OpX> fuse = subst->create_conv2d(input, weight, strideH, strideW, mode,
                                     AC_MODE_NONE, false/*isSrc*/);
   subst->map_output(add->outputs[0], fuse->outputs[0]);
   subst->srcOps.push_back(conv);
@@ -135,22 +135,22 @@ GraphXfer* GraphXfer::create_conv_add(Model* model, int strideH, int strideW, Pa
   return subst;
 }
 
-GraphXfer* GraphXfer::create_enlarge_merge_convs(Model* model, ActiMode activation)
+std::shared_ptr<GraphXfer> GraphXfer::create_enlarge_merge_convs(std::shared_ptr<Model> model, ActiMode activation)
 {
-  GraphXfer* subst = new GraphXfer(model);
+  std::shared_ptr<GraphXfer> subst = std::shared_ptr<GraphXfer>(new GraphXfer(model));
   TensorX input = subst->new_tensor();
   TensorX w1 = subst->new_tensor();
   TensorX w2 = subst->new_tensor();
-  OpX* conv1 = subst->create_conv2d(input, w1, 1, 1, PD_MODE_SAME, activation);
-  OpX* conv2 = subst->create_conv2d(input, w2, 1, 1, PD_MODE_SAME, activation);
+  std::shared_ptr<OpX> conv1 = subst->create_conv2d(input, w1, 1, 1, PD_MODE_SAME, activation);
+  std::shared_ptr<OpX> conv2 = subst->create_conv2d(input, w2, 1, 1, PD_MODE_SAME, activation);
   subst->srcOps.push_back(conv1);
   subst->srcOps.push_back(conv2);
-  OpX* enlarge = subst->create_enlarge(w1, w2, false/*isSrc*/);
-  OpX* concat = subst->create_concat(0/*axis*/, 4/*dim*/, enlarge->outputs[0],
+  std::shared_ptr<OpX> enlarge = subst->create_enlarge(w1, w2, false/*isSrc*/);
+  std::shared_ptr<OpX> concat = subst->create_concat(0/*axis*/, 4/*dim*/, enlarge->outputs[0],
                                      w2, false/*isSrc*/);
-  OpX* conv3 = subst->create_conv2d(input, concat->outputs[0], 1, 1,
+  std::shared_ptr<OpX> conv3 = subst->create_conv2d(input, concat->outputs[0], 1, 1,
                                     PD_MODE_SAME, activation, false/*isSrc*/);
-  OpX* split = subst->create_split(conv3->outputs[0], 1/*axis*/, 2, false/*isSrc*/);
+  std::shared_ptr<OpX> split = subst->create_split(conv3->outputs[0], 1/*axis*/, 2, false/*isSrc*/);
   subst->dstOps.push_back(enlarge);
   subst->dstOps.push_back(concat);
   subst->dstOps.push_back(conv3);
@@ -160,49 +160,49 @@ GraphXfer* GraphXfer::create_enlarge_merge_convs(Model* model, ActiMode activati
   return subst;
 }
 
-GraphXfer* GraphXfer::create_merge_group_convs(Model* model,
+std::shared_ptr<GraphXfer> GraphXfer::create_merge_group_convs(std::shared_ptr<Model> model,
                                                int strideH,
                                                int strideW,
                                                ActiMode activation)
 {
-  GraphXfer* subst = new GraphXfer(model);
+  std::shared_ptr<GraphXfer> subst = std::shared_ptr<GraphXfer>(new GraphXfer(model));
   TensorX input = subst->new_tensor();
   TensorX w = subst->new_tensor();
-  OpX* conv1 = subst->create_conv2d(input, w, strideH, strideW, PD_MODE_SAME, activation);
+  std::shared_ptr<OpX> conv1 = subst->create_conv2d(input, w, strideH, strideW, PD_MODE_SAME, activation);
   subst->srcOps.push_back(conv1);
-  OpX* merge = subst->create_merge_gconv(w, 2/*count*/, false/*isSrc*/);
-  OpX* conv2 = subst->create_conv2d(input, merge->outputs[0], strideH, strideW, PD_MODE_SAME, activation, false/*isSrc*/);
+  std::shared_ptr<OpX> merge = subst->create_merge_gconv(w, 2/*count*/, false/*isSrc*/);
+  std::shared_ptr<OpX> conv2 = subst->create_conv2d(input, merge->outputs[0], strideH, strideW, PD_MODE_SAME, activation, false/*isSrc*/);
   subst->dstOps.push_back(merge);
   subst->dstOps.push_back(conv2);
   subst->map_output(conv1->outputs[0], conv2->outputs[0]);
   return subst;
 }
 
-GraphXfer* create_merge_seperable_convs(Model* model)
+std::shared_ptr<GraphXfer> create_merge_seperable_convs(std::shared_ptr<Model> model)
 {
-  GraphXfer* subst = new GraphXfer(model);
+  std::shared_ptr<GraphXfer> subst = std::shared_ptr<GraphXfer>(new GraphXfer(model));
   TensorX input1 = subst->new_tensor();
   TensorX input2 = subst->new_tensor();
   TensorX w1 = subst->new_tensor();
   TensorX w2 = subst->new_tensor();
   TensorX w3 = subst->new_tensor();
   TensorX w4 = subst->new_tensor();
-  OpX* conv1 = subst->create_conv2d(input1, w1, 1, 1, PD_MODE_SAME,
+  std::shared_ptr<OpX> conv1 = subst->create_conv2d(input1, w1, 1, 1, PD_MODE_SAME,
                                     AC_MODE_NONE);
-  OpX* conv2 = subst->create_conv2d(input2, w2, 1, 1, PD_MODE_SAME,
+  std::shared_ptr<OpX> conv2 = subst->create_conv2d(input2, w2, 1, 1, PD_MODE_SAME,
                                     AC_MODE_NONE);
-  OpX* conv3 = subst->create_conv2d(conv1->outputs[0], w3, 1, 1,
+  std::shared_ptr<OpX> conv3 = subst->create_conv2d(conv1->outputs[0], w3, 1, 1,
                                     PD_MODE_SAME, AC_MODE_NONE);
-  OpX* conv4 = subst->create_conv2d(conv2->outputs[0], w4, 1, 1,
+  std::shared_ptr<OpX> conv4 = subst->create_conv2d(conv2->outputs[0], w4, 1, 1,
                                     PD_MODE_SAME, AC_MODE_NONE);
-  OpX* add = subst->create_element(conv3->outputs[0], conv4->outputs[0],
+  std::shared_ptr<OpX> add = subst->create_element(conv3->outputs[0], conv4->outputs[0],
                                    OP_EW_ADD);
-  OpX* concatIn = subst->create_concat(1/*axis*/, 4/*dim*/, input1, input2, false/*isSrc*/);
-  OpX* concat1 = subst->create_concat(0/*axis*/, 4/*dim*/, w1, w2, false/*isSrc*/);
-  OpX* concat2 = subst->create_concat(1/*axis*/, 4/*dim*/, w3, w4, false/*isSrc*/);
-  OpX* conv5 = subst->create_conv2d(concatIn->outputs[0], concat1->outputs[0], 1, 1,
+  std::shared_ptr<OpX> concatIn = subst->create_concat(1/*axis*/, 4/*dim*/, input1, input2, false/*isSrc*/);
+  std::shared_ptr<OpX> concat1 = subst->create_concat(0/*axis*/, 4/*dim*/, w1, w2, false/*isSrc*/);
+  std::shared_ptr<OpX> concat2 = subst->create_concat(1/*axis*/, 4/*dim*/, w3, w4, false/*isSrc*/);
+  std::shared_ptr<OpX> conv5 = subst->create_conv2d(concatIn->outputs[0], concat1->outputs[0], 1, 1,
                                     PD_MODE_SAME, AC_MODE_NONE, false/*isSrc*/);
-  OpX* conv6 = subst->create_conv2d(conv5->outputs[0], concat2->outputs[0], 1, 1,
+  std::shared_ptr<OpX> conv6 = subst->create_conv2d(conv5->outputs[0], concat2->outputs[0], 1, 1,
                                     PD_MODE_SAME,AC_MODE_NONE, false/*isSrc*/);
   subst->map_output(add->outputs[0], conv6->outputs[0]);
   subst->srcOps.push_back(conv1);
@@ -257,7 +257,7 @@ void GraphXfer::create_operator_from_pb(const GraphSubst::Operator& pbOp,
   }
   // Step 2: create op
   OpType type = (OpType) pbOp.type();
-  OpX* opx = NULL;
+  std::shared_ptr<OpX> opx = NULL;
   switch (type) {
     case OP_CONV2D:
     {
@@ -361,8 +361,8 @@ void GraphXfer::create_operator_from_pb(const GraphSubst::Operator& pbOp,
     dstOps.push_back(opx);
 }
 
-void GraphXfer::load_graph_xfer_from_pb_file(Model* model,
-                                             std::vector<GraphXfer*>& xfers,
+void GraphXfer::load_graph_xfer_from_pb_file(std::shared_ptr<Model> model,
+                                             std::vector<std::shared_ptr<GraphXfer>>& xfers,
                                              std::string filename)
 {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
@@ -373,7 +373,7 @@ void GraphXfer::load_graph_xfer_from_pb_file(Model* model,
   for (int i = 0; i < collection.rule_size(); i++) {
     const GraphSubst::Rule& rule = collection.rule(i);
     std::map<int, TensorX> mappedInputs;
-    GraphXfer* subst = new GraphXfer(model);
+    std::shared_ptr<GraphXfer> subst = std::shared_ptr<GraphXfer>(new GraphXfer(model));
     for (int j = 0; j < rule.srcop_size(); j++)
       subst->create_operator_from_pb(rule.srcop(j), mappedInputs, true);
     for (int j = 0; j < rule.dstop_size(); j++)
@@ -434,7 +434,7 @@ TNConstraint::TNConstraint(Compare c, TNParameter p1, DIMParameter d1,
                            TNParameter p2, DIMParameter d2)
 : singlePara(false), comp(c), para1(p1), para2(p2), dim1(d1), dim2(d2) {}
 
-Tensor TensorX::to_tensor(const GraphXfer* xfer) const
+Tensor TensorX::to_tensor(const std::shared_ptr<GraphXfer> xfer) const
 {
   if (op != NULL) {
     assert(op->mapOp.ptr != NULL);
@@ -471,13 +471,13 @@ OpX::OpX(OpType _type, TensorX in1, int numOutputs)
     case OP_SIGMOID:
     case OP_MERGE_GCONV:
     {
-      TensorX out(this, 0);
+      TensorX out(shared_from_this(), 0);
       outputs.push_back(out);
       break;
     }
     case OP_SPLIT:
       for (int i = 0; i < numOutputs; i++) {
-        TensorX out(this, i);
+        TensorX out(shared_from_this(), i);
         outputs.push_back(out);
       }
       break;
@@ -491,7 +491,7 @@ OpX::OpX(OpType _type, TensorX in1, TensorX in2)
 {
   inputs.push_back(in1);
   inputs.push_back(in2);
-  TensorX out(this, 0);
+  TensorX out(shared_from_this(), 0);
   switch (type) {
     case OP_CONV2D:
     case OP_EW_ADD:
@@ -515,7 +515,7 @@ OpX::OpX(OpType _type, TensorX in1, TensorX in2, TensorX in3)
   inputs.push_back(in1);
   inputs.push_back(in2);
   inputs.push_back(in3);
-  TensorX out(this, 0);
+  TensorX out(shared_from_this(), 0);
   switch (type) {
     case OP_FUSE_CONV_BATCHNORM_ALPHA_VAR:
       outputs.push_back(out);
@@ -531,7 +531,7 @@ OpX::OpX(OpType _type, TensorX in1, TensorX in2, TensorX in3, TensorX in4)
   inputs.push_back(in2);
   inputs.push_back(in3);
   inputs.push_back(in4);
-  TensorX out(this, 0);
+  TensorX out(shared_from_this(), 0);
   switch (type) {
     case OP_FUSE_CONV_BATCHNORM_BIAS:
       outputs.push_back(out);
@@ -549,7 +549,7 @@ OpX::OpX(OpType _type, TensorX in1, TensorX in2, TensorX in3, TensorX in4, Tenso
   inputs.push_back(in3);
   inputs.push_back(in4);
   inputs.push_back(in5);
-  TensorX out(this, 0);
+  TensorX out(shared_from_this(), 0);
   switch (type) {
     case OP_BATCHNORM:
     case OP_FUSE_CONV_BATCHNORM:
@@ -567,7 +567,7 @@ OpX::OpX(OpType _type, int n, TensorX* ins)
   for (int i = 0; i < n; i++) {
     inputs.push_back(ins[i]);
   }
-  TensorX out(this, 0);
+  TensorX out(shared_from_this(), 0);
   outputs.push_back(out);
 }
 
@@ -659,24 +659,24 @@ DstEdge::DstEdge(int _idx, DstOp* _op)
 {}
 */
 
-GraphXfer::GraphXfer(Model* _model)
+GraphXfer::GraphXfer(std::shared_ptr<Model> _model)
 : model(_model), tensorId(10)
 {}
 
-OpX* GraphXfer::create_activation(TensorX input, OpType type, bool isSrcOp)
+std::shared_ptr<OpX> GraphXfer::create_activation(TensorX input, OpType type, bool isSrcOp)
 {
-  OpX* activation = new OpX(type, input);
+  std::shared_ptr<OpX> activation = std::shared_ptr<OpX>(new OpX(type, input));
   return activation;
 }
 
-OpX* GraphXfer::create_conv2d(TensorX input, TensorX weight,
+std::shared_ptr<OpX> GraphXfer::create_conv2d(TensorX input, TensorX weight,
                               //int kernelH, int kernelW,
                               int strideH, int strideW,
                               PaddingMode padding,
                               ActiMode activation,
                               bool isSrcOp)
 {
-  OpX* conv = new OpX(OP_CONV2D, input, weight);
+  std::shared_ptr<OpX> conv = std::shared_ptr<OpX>(new OpX(OP_CONV2D, input, weight));
   //conv->add_pm_constraint(COMPARE_EQ, PM_KERNEL_H, kernelH);
   //conv->add_pm_constraint(COMPARE_EQ, PM_KERNEL_W, kernelW);
   conv->add_pm_constraint(COMPARE_EQ, PM_STRIDE_H, strideH);
@@ -690,58 +690,58 @@ OpX* GraphXfer::create_conv2d(TensorX input, TensorX weight,
   return conv;
 }
 
-OpX* GraphXfer::create_batchnorm(TensorX input, TensorX scale,
+std::shared_ptr<OpX> GraphXfer::create_batchnorm(TensorX input, TensorX scale,
                                  TensorX bias, TensorX mean,
                                  TensorX var, bool isSrcOp)
 {
-  OpX* batch = new OpX(OP_BATCHNORM, input, scale, bias, mean, var);
+  std::shared_ptr<OpX> batch = std::shared_ptr<OpX>(new OpX(OP_BATCHNORM, input, scale, bias, mean, var));
   return batch;
 }
 
-OpX* GraphXfer::create_element(TensorX input0, TensorX input1,
+std::shared_ptr<OpX> GraphXfer::create_element(TensorX input0, TensorX input1,
                                OpType type, bool isSrcOp)
 {
-  OpX* element = new OpX(type, input0, input1);
+  std::shared_ptr<OpX> element = std::shared_ptr<OpX>(new OpX(type, input0, input1));
   return element;
 }
 
-OpX* GraphXfer::create_fuse_conv_batchnorm(TensorX conv_w, TensorX scale,
+std::shared_ptr<OpX> GraphXfer::create_fuse_conv_batchnorm(TensorX conv_w, TensorX scale,
                                            TensorX bias, TensorX mean,
                                            TensorX var, bool isSrcOp)
 {
-  OpX* fuse = new OpX(OP_FUSE_CONV_BATCHNORM, conv_w, scale, bias, mean, var);
+  std::shared_ptr<OpX> fuse = std::shared_ptr<OpX>(new OpX(OP_FUSE_CONV_BATCHNORM, conv_w, scale, bias, mean, var));
   return fuse;
 }
 
-OpX* GraphXfer::create_fuse_conv_batchnorm_alpha_var(TensorX conv_w, TensorX scale,
+std::shared_ptr<OpX> GraphXfer::create_fuse_conv_batchnorm_alpha_var(TensorX conv_w, TensorX scale,
                                            TensorX var, bool isSrcOp)
 {
-  OpX* fuse = new OpX(OP_FUSE_CONV_BATCHNORM_ALPHA_VAR, conv_w, scale, var);
+  std::shared_ptr<OpX> fuse = std::shared_ptr<OpX>(new OpX(OP_FUSE_CONV_BATCHNORM_ALPHA_VAR, conv_w, scale, var));
   return fuse;
 }
 
-OpX* GraphXfer::create_fuse_conv_batchnorm_bias(TensorX scale,
+std::shared_ptr<OpX> GraphXfer::create_fuse_conv_batchnorm_bias(TensorX scale,
                                            TensorX bias, TensorX mean,
                                            TensorX var, bool isSrcOp)
 {
-  OpX* fuse = new OpX(OP_FUSE_CONV_BATCHNORM_BIAS, scale, bias, mean, var);
+  std::shared_ptr<OpX> fuse = std::shared_ptr<OpX>(new OpX(OP_FUSE_CONV_BATCHNORM_BIAS, scale, bias, mean, var));
   return fuse;
 }
 
-OpX* GraphXfer::create_broadcast_add(TensorX data, TensorX bias, bool isSrcOp)
+std::shared_ptr<OpX> GraphXfer::create_broadcast_add(TensorX data, TensorX bias, bool isSrcOp)
 {
-  OpX* fuse = new OpX(OP_BROADCAST_ADD, data, bias);
+  std::shared_ptr<OpX> fuse = std::shared_ptr<OpX>(new OpX(OP_BROADCAST_ADD, data, bias));
   return fuse;
 }
 
 
-OpX* GraphXfer::create_pool2d_avg(TensorX input, TensorX weight,
+std::shared_ptr<OpX> GraphXfer::create_pool2d_avg(TensorX input, TensorX weight,
                                   int strideH, int strideW,
                                   PaddingMode padding,
                                   ActiMode activation,
                                   bool isSrcOp)
 {
-  OpX* pool = new OpX(OP_POOL2D_AVG, input, weight);
+  std::shared_ptr<OpX> pool = std::shared_ptr<OpX>(new OpX(OP_POOL2D_AVG, input, weight));
   pool->add_pm_constraint(COMPARE_EQ, PM_STRIDE_H, strideH);
   pool->add_pm_constraint(COMPARE_EQ, PM_STRIDE_W, strideW);
   pool->add_pm_constraint(COMPARE_EQ, PM_PAD, padding);
@@ -750,27 +750,27 @@ OpX* GraphXfer::create_pool2d_avg(TensorX input, TensorX weight,
   return pool;
 }
 
-OpX* GraphXfer::create_matmul(TensorX input, TensorX weight,
+std::shared_ptr<OpX> GraphXfer::create_matmul(TensorX input, TensorX weight,
                               ActiMode activation,
                               bool isSrcOp)
 {
-  OpX* matmul = new OpX(OP_MATMUL, input, weight);
+  std::shared_ptr<OpX> matmul = std::shared_ptr<OpX>(new OpX(OP_MATMUL, input, weight));
   matmul->add_pm_constraint(COMPARE_EQ, PM_ACTI, activation);
   matmul->add_input_constraint(COMPARE_EQ, IN_1, DIM_0, IN_0, DIM_1);
   return matmul;
 }
 
-OpX* GraphXfer::create_mul(TensorX x, TensorX y, bool isSrcOp)
+std::shared_ptr<OpX> GraphXfer::create_mul(TensorX x, TensorX y, bool isSrcOp)
 {
-  OpX* mul = new OpX(OP_MUL, x, y);
+  std::shared_ptr<OpX> mul = std::shared_ptr<OpX>(new OpX(OP_MUL, x, y));
   mul->add_input_constraint(COMPARE_EQ, IN_0, DIM_ND, 0);
   return mul;
 }
 
-OpX* GraphXfer::create_transpose(TensorX input, int numDim, int* perm,
+std::shared_ptr<OpX> GraphXfer::create_transpose(TensorX input, int numDim, int* perm,
                                  int shuffle)
 {
-  OpX* transpose = new OpX(OP_TRANSPOSE, input);
+  std::shared_ptr<OpX> transpose = std::shared_ptr<OpX>(new OpX(OP_TRANSPOSE, input));
   int permIdx = 0;
   for (int i = 0; i < numDim; i++)
     permIdx = permIdx * numDim + perm[i];
@@ -780,9 +780,9 @@ OpX* GraphXfer::create_transpose(TensorX input, int numDim, int* perm,
   return transpose;
 }
 
-OpX* GraphXfer::create_enlarge(TensorX w1, TensorX w2, bool isSrcOp)
+std::shared_ptr<OpX> GraphXfer::create_enlarge(TensorX w1, TensorX w2, bool isSrcOp)
 {
-  OpX* enlarge = new OpX(OP_ENLARGE, w1, w2);
+  std::shared_ptr<OpX> enlarge = std::shared_ptr<OpX>(new OpX(OP_ENLARGE, w1, w2));
   //enlarge->add_pm_constraint(COMPARE_EQ, PM_KERNEL_H, kernelH);
   //enlarge->add_pm_constraint(COMPARE_EQ, PM_KERNEL_W, kernelW);
   enlarge->add_input_constraint(COMPARE_LE, IN_0, DIM_2, IN_1, DIM_2);
@@ -790,23 +790,23 @@ OpX* GraphXfer::create_enlarge(TensorX w1, TensorX w2, bool isSrcOp)
   return enlarge;
 }
 
-OpX* GraphXfer::create_merge_gconv(TensorX w, int count, bool isSrcOp)
+std::shared_ptr<OpX> GraphXfer::create_merge_gconv(TensorX w, int count, bool isSrcOp)
 {
-  OpX* merge = new OpX(OP_MERGE_GCONV, w);
+  std::shared_ptr<OpX> merge = std::shared_ptr<OpX>(new OpX(OP_MERGE_GCONV, w));
   merge->add_pm_constraint(COMPARE_EQ, PM_MERGE_GCONV_COUNT, count);
   return merge;
 }
 
-OpX* GraphXfer::create_concat(int axis, int numDim, TensorX in1, TensorX in2, bool isSrcOp)
+std::shared_ptr<OpX> GraphXfer::create_concat(int axis, int numDim, TensorX in1, TensorX in2, bool isSrcOp)
 {
   TensorX ins[2];
   ins[0] = in1; ins[1] = in2;
   return create_concat(axis, numDim, 2, ins, isSrcOp);
 }
 
-OpX* GraphXfer::create_concat(int axis, int numDim, int n, TensorX* ins, bool isSrcOp)
+std::shared_ptr<OpX> GraphXfer::create_concat(int axis, int numDim, int n, TensorX* ins, bool isSrcOp)
 {
-  OpX* concat = new OpX(OP_CONCAT, n, ins);
+  std::shared_ptr<OpX> concat = std::shared_ptr<OpX>(new OpX(OP_CONCAT, n, ins));
   concat->add_pm_constraint(COMPARE_EQ, PM_AXIS, axis);
   concat->add_input_constraint(COMPARE_EQ, IN_0, DIM_ND, numDim);
   for (int i = 1; i < n; i++) {
@@ -823,9 +823,9 @@ OpX* GraphXfer::create_concat(int axis, int numDim, int n, TensorX* ins, bool is
   return concat;
 }
 
-OpX* GraphXfer::create_split(TensorX input, int axis, int n, bool isSrcOp)
+std::shared_ptr<OpX> GraphXfer::create_split(TensorX input, int axis, int n, bool isSrcOp)
 {
-  OpX* split = new OpX(OP_SPLIT, input, n);
+  std::shared_ptr<OpX> split = std::shared_ptr<OpX>(new OpX(OP_SPLIT, input, n));
   split->add_pm_constraint(COMPARE_EQ, PM_AXIS, axis);
   return split;
 }
@@ -899,7 +899,7 @@ bool GraphXfer::map_output(TensorX src, TensorX dst)
 //  return true;
 //}
 
-bool GraphXfer::can_match(OpX* srcOp, Op op, Graph* graph)
+bool GraphXfer::can_match(std::shared_ptr<OpX> srcOp, Op op, std::shared_ptr<Graph> graph)
 {
   if (srcOp->type != op.ptr->type) return false;
   // check num input tensors
@@ -1044,7 +1044,7 @@ bool GraphXfer::can_match(OpX* srcOp, Op op, Graph* graph)
   return true;
 }
 
-void GraphXfer::match(OpX* srcOp, Op op, Graph* graph)
+void GraphXfer::match(std::shared_ptr<OpX> srcOp, Op op, std::shared_ptr<Graph> graph)
 {
   for (size_t i = 0; i < srcOp->inputs.size(); i++) {
     TensorX in = srcOp->inputs[i];
@@ -1066,7 +1066,7 @@ void GraphXfer::match(OpX* srcOp, Op op, Graph* graph)
   mappedOps[op] = srcOp;
 }
 
-void GraphXfer::unmatch(OpX* srcOp, Op op, Graph* graph)
+void GraphXfer::unmatch(std::shared_ptr<OpX> srcOp, Op op, std::shared_ptr<Graph> graph)
 {
   for (size_t i = 0; i < srcOp->inputs.size(); i++) {
     TensorX in = srcOp->inputs[i];
@@ -1080,26 +1080,27 @@ void GraphXfer::unmatch(OpX* srcOp, Op op, Graph* graph)
   // Unmap op
   mappedOps.erase(op);
   srcOp->mapOp.guid = 0;
-  srcOp->mapOp.ptr = NULL;
+  //srcOp->mapOp.ptr = NULL;
+  delete &srcOp->mapOp.ptr;
 }
 
-void GraphXfer::run(int depth, Graph* graph,
-                    std::priority_queue<Graph*, std::vector<Graph*>, GraphCompare>& candidates,
+void GraphXfer::run(int depth, std::shared_ptr<Graph> graph,
+                    std::priority_queue<std::shared_ptr<Graph>, std::vector<std::shared_ptr<Graph> >, GraphCompare>& candidates,
                     std::set<size_t>& hashmap, float threshold, int maxNumOps)
 {
   //printf("run: depth(%d) srcOps.size(%zu) graph.size(%zu) candidates(%zu)\n", depth, srcOps.size(), graph->inEdges.size(), candidates.size());
   if (depth >= (int)srcOps.size()) {
     // Create dst operators
     bool pass = true;
-    std::vector<OpX*>::const_iterator dstIt;
+    std::vector<std::shared_ptr<OpX>>::const_iterator dstIt;
     for (dstIt = dstOps.begin(); dstIt != dstOps.end(); dstIt++)
       if (pass) {
-        OpX* dstOp = *dstIt;
+        std::shared_ptr<OpX> dstOp = *dstIt;
         pass = (pass & create_new_operator(dstOp, dstOp->mapOp));
       }
     if (!pass) return;
     // Check that output tensors with external edges are mapped
-    std::map<Op, OpX*, OpCompare>::const_iterator opIt;
+    std::map<Op, std::shared_ptr<OpX>, OpCompare>::const_iterator opIt;
     for (opIt = mappedOps.begin(); opIt != mappedOps.end(); opIt++) {
       const std::set<Edge, EdgeCompare>& list = graph->outEdges[opIt->first];
       std::set<Edge, EdgeCompare>::const_iterator it;
@@ -1116,11 +1117,11 @@ void GraphXfer::run(int depth, Graph* graph,
         }
     }
     // Generate a new graph by applying xfer rule
-    Graph* newGraph = create_new_graph(graph);
+    std::shared_ptr<Graph> newGraph = create_new_graph(graph);
     // Check that the new graph should not have any loop
     if (newGraph->has_loop()) {
       //printf("Found a new graph with LOOP!!!!\n");
-      delete newGraph;
+      delete &newGraph;
       return;
     }
     // TODO: remove me for better performance
@@ -1131,10 +1132,10 @@ void GraphXfer::run(int depth, Graph* graph,
         candidates.push(newGraph);
       }
     } else {
-      delete newGraph;
+      delete &newGraph;
     }
   } else {
-    OpX* srcOp = srcOps[depth];
+    std::shared_ptr<OpX> srcOp = srcOps[depth];
     std::map<Op, std::set<Edge, EdgeCompare>, OpCompare>::const_iterator it;
     for (it = graph->inEdges.begin(); it != graph->inEdges.end(); it++) {
       //printf("can_match(%d)\n", can_match(srcOp, it->first, graph));
@@ -1150,9 +1151,9 @@ void GraphXfer::run(int depth, Graph* graph,
   }
 }
 
-Graph* GraphXfer::create_new_graph(Graph* graph)
+std::shared_ptr<Graph> GraphXfer::create_new_graph(std::shared_ptr<Graph> graph)
 {
-  Graph* newGraph = new Graph();
+    std::shared_ptr<Graph> newGraph = std::shared_ptr<Graph>(new Graph());
   newGraph->subst_history = graph->subst_history;
   Graph::GraphSubst subst;
   for (size_t i = 0; i < srcOps.size(); i++) {
@@ -1166,7 +1167,7 @@ Graph* GraphXfer::create_new_graph(Graph* graph)
   newGraph->subst_history.push_back(subst);
   // Step 1: map dst ops
   std::map<Op, std::set<Edge, EdgeCompare>, OpCompare>::const_iterator opIt;
-  std::vector<OpX*>::const_iterator dstIt;
+  std::vector<std::shared_ptr<OpX>>::const_iterator dstIt;
   // Step 2: add edges to the graph
   for (opIt = graph->inEdges.begin(); opIt != graph->inEdges.end(); opIt++)
     if (mappedOps.find(opIt->first) == mappedOps.end()) {
@@ -1189,7 +1190,7 @@ Graph* GraphXfer::create_new_graph(Graph* graph)
     }
   // Step 3: add edges for mapped ops
   for (dstIt = dstOps.begin(); dstIt != dstOps.end(); dstIt ++) {
-    OpX* dstOp = *dstIt;
+    std::shared_ptr<OpX> dstOp = *dstIt;
     for (size_t i = 0; i < dstOp->inputs.size(); i++)
       if (dstOp->inputs[i].op == NULL) {
         // unmapped src -> mapped dst
@@ -1200,7 +1201,7 @@ Graph* GraphXfer::create_new_graph(Graph* graph)
         newGraph->add_edge(srcEdge.first, dstOp->mapOp, srcEdge.second, i);
       } else {
         // mapped src -> mapped dst
-        OpX* srcOp = dstOp->inputs[i].op;
+        std::shared_ptr<OpX> srcOp = dstOp->inputs[i].op;
         int srcIdx = dstOp->inputs[i].idx;
         newGraph->add_edge(srcOp->mapOp, dstOp->mapOp, srcIdx, i);
       }
@@ -1208,14 +1209,14 @@ Graph* GraphXfer::create_new_graph(Graph* graph)
   return newGraph;
 }
 
-bool GraphXfer::create_new_operator(const OpX* opx, Op& op)
+bool GraphXfer::create_new_operator(const std::shared_ptr<OpX> opx, Op& op)
 {
   switch (opx->type) {
     case OP_CONV2D:
     {
       assert(opx->inputs.size() == 2);
-      Tensor input = opx->inputs[0].to_tensor(this);
-      Tensor weight = opx->inputs[1].to_tensor(this);
+      Tensor input = opx->inputs[0].to_tensor(shared_from_this());
+      Tensor weight = opx->inputs[1].to_tensor(shared_from_this());
       int strideH, strideW, padding, activation;
       assert(opx->get_pm_constraint(PM_STRIDE_H, strideH));
       assert(opx->get_pm_constraint(PM_STRIDE_W, strideW));
@@ -1230,54 +1231,54 @@ bool GraphXfer::create_new_operator(const OpX* opx, Op& op)
     case OP_EW_MUL:
     {
       assert(opx->inputs.size() == 2);
-      Tensor input0 = opx->inputs[0].to_tensor(this);
-      Tensor input1 = opx->inputs[1].to_tensor(this);
+      Tensor input0 = opx->inputs[0].to_tensor(shared_from_this());
+      Tensor input1 = opx->inputs[1].to_tensor(shared_from_this());
       op = model->get_or_create_element(opx->type, input0, input1);
       break;
     }
     case OP_FUSE_CONV_BATCHNORM:
     {
       assert(opx->inputs.size() == 5);
-      Tensor conv_w = opx->inputs[0].to_tensor(this);
-      Tensor scale = opx->inputs[1].to_tensor(this);
-      Tensor bias = opx->inputs[2].to_tensor(this);
-      Tensor mean = opx->inputs[3].to_tensor(this);
-      Tensor var = opx->inputs[4].to_tensor(this);
+      Tensor conv_w = opx->inputs[0].to_tensor(shared_from_this());
+      Tensor scale = opx->inputs[1].to_tensor(shared_from_this());
+      Tensor bias = opx->inputs[2].to_tensor(shared_from_this());
+      Tensor mean = opx->inputs[3].to_tensor(shared_from_this());
+      Tensor var = opx->inputs[4].to_tensor(shared_from_this());
       op = model->get_or_create_fuse_conv_batchnorm(conv_w, scale, bias, mean, var);
       break;
     }
     case OP_FUSE_CONV_BATCHNORM_BIAS:
     {
       assert(opx->inputs.size() == 4);
-      Tensor scale = opx->inputs[0].to_tensor(this);
-      Tensor bias = opx->inputs[1].to_tensor(this);
-      Tensor mean = opx->inputs[2].to_tensor(this);
-      Tensor var = opx->inputs[3].to_tensor(this);
+      Tensor scale = opx->inputs[0].to_tensor(shared_from_this());
+      Tensor bias = opx->inputs[1].to_tensor(shared_from_this());
+      Tensor mean = opx->inputs[2].to_tensor(shared_from_this());
+      Tensor var = opx->inputs[3].to_tensor(shared_from_this());
       op = model->get_or_create_fuse_conv_batchnorm_bias(scale, bias, mean, var);
       break;
     }
     case OP_FUSE_CONV_BATCHNORM_ALPHA_VAR:
     {
       assert(opx->inputs.size() == 3);
-      Tensor conv_w = opx->inputs[0].to_tensor(this);
-      Tensor scale = opx->inputs[1].to_tensor(this);
-      Tensor var = opx->inputs[2].to_tensor(this);
+      Tensor conv_w = opx->inputs[0].to_tensor(shared_from_this());
+      Tensor scale = opx->inputs[1].to_tensor(shared_from_this());
+      Tensor var = opx->inputs[2].to_tensor(shared_from_this());
       op = model->get_or_create_fuse_conv_batchnorm_alpha_var(conv_w, scale, var);
       break;
     }
     case OP_BROADCAST_ADD:
     {
       assert(opx->inputs.size() == 2);
-      Tensor _data = opx->inputs[0].to_tensor(this);
-      Tensor _bias = opx->inputs[1].to_tensor(this);
+      Tensor _data = opx->inputs[0].to_tensor(shared_from_this());
+      Tensor _bias = opx->inputs[1].to_tensor(shared_from_this());
       op = model->get_or_create_broadcast_add(_data, _bias);
       break;
     }
     case OP_MATMUL:
     {
       assert(opx->inputs.size() == 2);
-      Tensor input = opx->inputs[0].to_tensor(this);
-      Tensor weight = opx->inputs[1].to_tensor(this);
+      Tensor input = opx->inputs[0].to_tensor(shared_from_this());
+      Tensor weight = opx->inputs[1].to_tensor(shared_from_this());
       int activation;
       assert(opx->get_pm_constraint(PM_ACTI, activation));
       op = model->get_or_create_matmul(input, weight,
@@ -1287,7 +1288,7 @@ bool GraphXfer::create_new_operator(const OpX* opx, Op& op)
     case OP_TRANSPOSE:
     {
       assert(opx->inputs.size() == 1);
-      Tensor input = opx->inputs[0].to_tensor(this);
+      Tensor input = opx->inputs[0].to_tensor(shared_from_this());
       int permIdx, shuffle;
       assert(opx->get_pm_constraint(PM_PERM, permIdx));
       assert(opx->get_pm_constraint(PM_OUTSHUFFLE, shuffle));
@@ -1297,8 +1298,8 @@ bool GraphXfer::create_new_operator(const OpX* opx, Op& op)
     case OP_ENLARGE:
     {
       assert(opx->inputs.size() == 2);
-      Tensor w1 = opx->inputs[0].to_tensor(this);
-      Tensor w2 = opx->inputs[1].to_tensor(this);
+      Tensor w1 = opx->inputs[0].to_tensor(shared_from_this());
+      Tensor w2 = opx->inputs[1].to_tensor(shared_from_this());
       //int kernelH, kernelW;
       //assert(opx->get_pm_constraint(PM_KERNEL_H, kernelH));
       //assert(opx->get_pm_constraint(PM_KERNEL_W, kernelW));
@@ -1308,7 +1309,7 @@ bool GraphXfer::create_new_operator(const OpX* opx, Op& op)
     case OP_MERGE_GCONV:
     {
       assert(opx->inputs.size() == 1);
-      Tensor weight = opx->inputs[0].to_tensor(this);
+      Tensor weight = opx->inputs[0].to_tensor(shared_from_this());
       int count;
       assert(opx->get_pm_constraint(PM_MERGE_GCONV_COUNT, count));
       op = model->get_or_create_merge_gconv(weight, count);
@@ -1320,7 +1321,7 @@ bool GraphXfer::create_new_operator(const OpX* opx, Op& op)
       Tensor inputs[MAX_NUM_INPUTS];
       bool needCopy[MAX_NUM_INPUTS];
       for (size_t i = 0; i < opx->inputs.size(); i++) {
-        inputs[i] = opx->inputs[i].to_tensor(this);
+        inputs[i] = opx->inputs[i].to_tensor(shared_from_this());
         needCopy[i] = false;
       }
       int axis;
@@ -1331,7 +1332,7 @@ bool GraphXfer::create_new_operator(const OpX* opx, Op& op)
     case OP_SPLIT:
     {
       int axis;
-      Tensor input = opx->inputs[0].to_tensor(this);
+      Tensor input = opx->inputs[0].to_tensor(shared_from_this());
       assert(opx->get_pm_constraint(PM_AXIS, axis));
       op = model->get_or_create_split(input, axis, opx->outputs.size());
       break;
@@ -1341,7 +1342,7 @@ bool GraphXfer::create_new_operator(const OpX* opx, Op& op)
     case OP_SIGMOID:
     {
       assert(opx->inputs.size() == 1);
-      Tensor input = opx->inputs[0].to_tensor(this);
+      Tensor input = opx->inputs[0].to_tensor(shared_from_this());
       op = model->get_or_create_activation(input, opx->type, true);
       break;
     }

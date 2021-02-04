@@ -40,7 +40,7 @@ TensorHandle Graph::where(const TensorHandle _cond,
   add_edge(_cond->op, op, _cond->idx, 0);
   add_edge(_x->op, op, _x->idx, 1);
   add_edge(_y->op, op, _y->idx, 2);
-  TensorHandle t = new Tensor(op.ptr->outputs[0]);
+  TensorHandle t = std::shared_ptr<Tensor>(new Tensor(op.ptr->outputs[0]));
   t->op = op;
   return t;
 }
@@ -59,11 +59,11 @@ Op Model::get_or_create_where(const Tensor& _cond,
     return Op::INVALID_OP;
   }
   WhereKey key(_cond, _x, _y);
-  Where* whereOp;
+  std::shared_ptr<Where> whereOp;
   if (where.find(key) != where.end()) {
     whereOp = where[key];
   } else {
-    whereOp = new Where(this, _cond, _x, _y);
+    whereOp = std::shared_ptr<Where>(new Where(shared_from_this(), _cond, _x, _y));
     measure_where_cost(whereOp);
     where[key] = whereOp;
   }
@@ -73,7 +73,7 @@ Op Model::get_or_create_where(const Tensor& _cond,
   return ret;
 }
 
-Where::Where(Model* _model, const Tensor& _cond,
+Where::Where(std::shared_ptr<Model> _model, const Tensor& _cond,
              const Tensor& _x, const Tensor& _y)
 : OpBase(_cond, _x, _y, _model, OP_WHERE)
 {

@@ -30,7 +30,7 @@ TensorHandle Graph::fuse_conv_batchnorm(const TensorHandle _conv_w,
   add_edge(_bias->op, op, _bias->idx, 2);
   add_edge(_mean->op, op, _mean->idx, 3);
   add_edge(_var->op, op, _var->idx, 4);
-  TensorHandle t = new Tensor(op.ptr->outputs[0]);
+  TensorHandle t = std::shared_ptr<Tensor>(new Tensor(op.ptr->outputs[0]));
   t->op = op;
   return t;
 }
@@ -42,11 +42,11 @@ Op Model::get_or_create_fuse_conv_batchnorm(const Tensor& _conv_w,
                                             const Tensor& _var)
 {
   FuseConvBatchNormKey key(_conv_w);
-  FuseConvBatchNorm* fuseOp;
+  std::shared_ptr<FuseConvBatchNorm> fuseOp;
   if (fuse_conv_batchnorm.find(key) != fuse_conv_batchnorm.end()) {
     fuseOp = fuse_conv_batchnorm[key];
   } else {
-    fuseOp = new FuseConvBatchNorm(this, _conv_w, _scale, _bias, _mean, _var);
+    fuseOp = std::shared_ptr<FuseConvBatchNorm>(new FuseConvBatchNorm(shared_from_this(), _conv_w, _scale, _bias, _mean, _var));
     //Assign a zero cost since it can be preprocessed
     // measure_fuse_conv_batchnorm_cost(fuseOp);
     fuseOp->runtime = 0.0f;
@@ -58,7 +58,7 @@ Op Model::get_or_create_fuse_conv_batchnorm(const Tensor& _conv_w,
   return ret;
 }
 
-FuseConvBatchNorm::FuseConvBatchNorm(Model* _model,
+FuseConvBatchNorm::FuseConvBatchNorm(std::shared_ptr<Model> _model,
                                      const Tensor& _conv_w,
                                      const Tensor& _scale,
                                      const Tensor& _bias,

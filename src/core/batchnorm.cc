@@ -29,7 +29,7 @@ TensorHandle Graph::batchnorm(const TensorHandle _input,
   add_edge(_bias->op, op, _bias->idx, 2);
   add_edge(_mean->op, op, _mean->idx, 3);
   add_edge(_var->op, op, _var->idx, 4);
-  TensorHandle t = new Tensor(op.ptr->outputs[0]);
+  TensorHandle t = std::shared_ptr<Tensor>(new Tensor(op.ptr->outputs[0]));
   t->op = op;
   return t;
 }
@@ -42,11 +42,11 @@ Op Model::get_or_create_batchnorm(const Tensor& _input,
 {
   // key is (inputN, inputC, inputH, inputW)
   BatchNormKey key(_input);
-  BatchNorm* bnOp;
+  std::shared_ptr<BatchNorm> bnOp;
   if(batchnorm.find(key) != batchnorm.end()) {
     bnOp = batchnorm[key];
   } else {
-    bnOp = new BatchNorm(this, _input, _scale, _bias, _mean, _var);
+    bnOp = std::shared_ptr<BatchNorm>(new BatchNorm(shared_from_this(), _input, _scale, _bias, _mean, _var));
     measure_batchnorm_cost(bnOp);
     batchnorm[key] = bnOp;
   }
@@ -56,7 +56,7 @@ Op Model::get_or_create_batchnorm(const Tensor& _input,
   return ret;
 }
 
-BatchNorm::BatchNorm(Model* _model,
+BatchNorm::BatchNorm(std::shared_ptr<Model> _model,
                      const Tensor& _input,
                      const Tensor& _scale,
                      const Tensor& _bias,

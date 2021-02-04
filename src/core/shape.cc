@@ -22,7 +22,7 @@ TensorHandle Graph::shape(const TensorHandle _input,
   Op op = model->get_or_create_shape(*_input, _type);
   assert(op != Op::INVALID_OP);
   add_edge(_input->op, op, _input->idx, 0);
-  TensorHandle t = new Tensor(op.ptr->outputs[0]);
+  TensorHandle t = std::shared_ptr<Tensor>(new Tensor(op.ptr->outputs[0]));
   t->op = op;
   return t;
 }
@@ -31,11 +31,11 @@ Op Model::get_or_create_shape(const Tensor& _input,
                               OpType _type)
 {
   ShapeKey key(_input, _type);
-  Shape* shapeOp;
+  std::shared_ptr<Shape> shapeOp;
   if (shape.find(key) != shape.end()) {
     shapeOp = shape[key];
   } else {
-    shapeOp = new Shape(this, _input, _type);
+    shapeOp = std::shared_ptr<Shape>(new Shape(shared_from_this(), _input, _type));
     measure_shape_cost(shapeOp);
     shape[key] = shapeOp;
   }
@@ -45,7 +45,7 @@ Op Model::get_or_create_shape(const Tensor& _input,
   return ret;
 }
 
-Shape::Shape(Model* _model, const Tensor& _input, OpType _type)
+Shape::Shape(std::shared_ptr<Model> _model, const Tensor& _input, OpType _type)
 : OpBase(_input, _model, _type)
 {
   numOutputs = 1;

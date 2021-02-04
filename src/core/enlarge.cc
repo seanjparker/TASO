@@ -30,7 +30,7 @@ TensorHandle Graph::enlarge(const TensorHandle _w1,
   assert(op != Op::INVALID_OP);
   add_edge(_w1->op, op, _w1->idx, 0);
   add_edge(_w2->op, op, _w2->idx, 1);
-  TensorHandle t = new Tensor(op.ptr->outputs[0]);
+  TensorHandle t = std::shared_ptr<Tensor>(new Tensor(op.ptr->outputs[0]));
   t->op = op;
   return t;
 }
@@ -44,11 +44,11 @@ Op Model::get_or_create_enlarge(Tensor _w1, Tensor _w2)
   if (_w1.dim[2] > _w2.dim[2] || _w1.dim[3] > _w2.dim[3])
     return Op::INVALID_OP;
   EnlargeKey key(_w1, _w2);
-  Enlarge* enlargeOp;
+  std::shared_ptr<Enlarge> enlargeOp;
   if (enlarge.find(key) != enlarge.end()) {
     enlargeOp = enlarge[key];
   } else {
-    enlargeOp = new Enlarge(this, _w1, _w2);
+    enlargeOp = std::shared_ptr<Enlarge>(new Enlarge(shared_from_this(), _w1, _w2));
     measure_enlarge_cost(enlargeOp);
     enlarge[key] = enlargeOp;
   }
@@ -58,7 +58,7 @@ Op Model::get_or_create_enlarge(Tensor _w1, Tensor _w2)
   return ret;
 }
 
-Enlarge::Enlarge(Model* _model, Tensor _w1, Tensor _w2)
+Enlarge::Enlarge(std::shared_ptr<Model> _model, Tensor _w1, Tensor _w2)
 : OpBase(_w1, _w2, _model, OP_ENLARGE)
 {
   assert(_w1.numDim == 4);

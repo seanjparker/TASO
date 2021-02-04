@@ -21,7 +21,7 @@ TensorHandle Graph::input_wrapper(const TensorHandle _input)
   // Always create new operator for input
   Op op = model->create_input(*_input, OP_INPUT);
   add_edge(_input->op, op, _input->idx, 0);
-  TensorHandle t = new Tensor(op.ptr->outputs[0]);
+  TensorHandle t = std::shared_ptr<Tensor>(new Tensor(op.ptr->outputs[0]));
   t->op = op;
   return t;
 }
@@ -31,7 +31,7 @@ TensorHandle Graph::weight_wrapper(const TensorHandle _weight)
   // Always create new operator for weight
   Op op = model->create_weight(*_weight, OP_WEIGHT);
   add_edge(_weight->op, op, _weight->idx, 0);
-  TensorHandle t = new Tensor(op.ptr->outputs[0]);
+  TensorHandle t = std::shared_ptr<Tensor>(new Tensor(op.ptr->outputs[0]));
   t->op = op;
   return t;
 }
@@ -41,7 +41,7 @@ TensorHandle Graph::dropout(const TensorHandle _input)
 {
   Op op = model->get_or_create_noop(*_input, OP_DROPOUT);
   add_edge(_input->op, op, _input->idx, 0);
-  TensorHandle t = new Tensor(op.ptr->outputs[0]);
+  TensorHandle t = std::shared_ptr<Tensor>(new Tensor(op.ptr->outputs[0]));
   t->op = op;
   return t;
 }
@@ -50,7 +50,7 @@ Op Model::create_input(Tensor _input, OpType _type)
 {
   assert(_type == OP_INPUT);
   Op ret;
-  ret.ptr = new NoOp(this, _input, _type);
+  ret.ptr = std::shared_ptr<NoOp>(new NoOp(shared_from_this(), _input, _type));
   ret.guid = global_unique_id ++;
   return ret;
 }
@@ -63,7 +63,7 @@ Op Model::create_weight(Tensor _weight, OpType _type)
     fprintf(stderr, "[%s:%d] Warning: Find uninitialized weight tensor.\n", __FILE__, __LINE__);
   }
   Op ret;
-  ret.ptr = new NoOp(this, _weight, _type);
+  ret.ptr = std::shared_ptr<NoOp>(new NoOp(shared_from_this(), _weight, _type));
   ret.guid = global_unique_id ++;
   return ret;
 }
@@ -73,11 +73,11 @@ Op Model::get_or_create_noop(Tensor _input, OpType _type)
   assert(_type == OP_DROPOUT);
   // key is (_type, _input)
   NoopKey key(_input, _type);
-  NoOp* noOp;
+  std::shared_ptr<NoOp> noOp;
   if (noop.find(key) != noop.end()) {
     noOp = noop[key];
   } else {
-    noOp = new NoOp(this, _input, _type);
+    noOp = std::shared_ptr<NoOp>(new NoOp(shared_from_this(), _input, _type));
     noOp->runtime = 0.0f;
     noop[key] = noOp;
   }
@@ -87,7 +87,7 @@ Op Model::get_or_create_noop(Tensor _input, OpType _type)
   return ret;
 }
 
-NoOp::NoOp(Model* _model, Tensor _input, OpType type)
+NoOp::NoOp(std::shared_ptr<Model> _model, Tensor _input, OpType type)
 : OpBase(_input, _model, type)
 {
   numOutputs = 1;

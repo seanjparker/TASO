@@ -33,7 +33,7 @@ void Cast::forward(bool block)
     checkCUDA(cudaDeviceSynchronize());
 }
 
-void Model::measure_cast_cost(Cast* cast)
+void Model::measure_cast_cost(std::shared_ptr<Cast> cast)
 {
   cast->runtime = 0;
   if (print_cost)

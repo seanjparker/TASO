@@ -39,7 +39,7 @@ TensorHandle Graph::reshape(const TensorHandle _input,
   assert(input_size == 1);
   Op op = model->get_or_create_reshape(*_input, myshape);
   add_edge(_input->op, op, _input->idx, 0);
-  TensorHandle t = new Tensor(op.ptr->outputs[0]);
+  TensorHandle t = std::shared_ptr<Tensor>(new Tensor(op.ptr->outputs[0]));
   t->op = op;
   return t;
 }
@@ -48,11 +48,11 @@ Op Model::get_or_create_reshape(Tensor _input,
                                 const std::vector<int>& _shape)
 {
   ReshapeKey key(_input, _shape);
-  Reshape* reshapeOp;
+  std::shared_ptr<Reshape> reshapeOp;
   if (reshape.find(key) != reshape.end()) {
     reshapeOp = reshape[key];
   } else {
-    reshapeOp = new Reshape(this, _input, _shape);
+    reshapeOp = std::shared_ptr<Reshape>(new Reshape(shared_from_this(), _input, _shape));
     measure_reshape_cost(reshapeOp);
     reshape[key] = reshapeOp;
   }
@@ -62,7 +62,7 @@ Op Model::get_or_create_reshape(Tensor _input,
   return ret;
 }
 
-Reshape::Reshape(Model* _model, Tensor _input,
+Reshape::Reshape(std::shared_ptr<Model> _model, Tensor _input,
                  const std::vector<int>& _shape)
 
 : OpBase(_input, _model, OP_RESHAPE)

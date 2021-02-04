@@ -107,7 +107,7 @@ void Conv2D::forward(bool block)
     checkCUDA(cudaDeviceSynchronize());
 }
 
-void Model::measure_conv2d_cost(Conv2D* conv)
+void Model::measure_conv2d_cost(std::shared_ptr<Conv2D> conv)
 {
   const float alpha = 1.0f;
   const float beta = 0.0f;

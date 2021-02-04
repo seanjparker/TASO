@@ -48,7 +48,7 @@ TensorHandle Graph::pool2d_max(const TensorHandle _input,
               _strideH, _strideW, _padding, _activation);
   add_edge(_input->op, op, _input->idx, 0);
   add_edge(weight->op, op, weight->idx, 1);
-  TensorHandle t = new Tensor(op.ptr->outputs[0]);
+  TensorHandle t = std::shared_ptr<Tensor>(new Tensor(op.ptr->outputs[0]));
   t->op = op;
   return t;
 }
@@ -85,7 +85,7 @@ TensorHandle Graph::pool2d_avg(const TensorHandle _input,
               _strideH, _strideW, _padding, _activation);
   add_edge(_input->op, op, _input->idx, 0);
   add_edge(weight->op, op, weight->idx, 1);
-  TensorHandle t = new Tensor(op.ptr->outputs[0]);
+  TensorHandle t = std::shared_ptr<Tensor>(new Tensor(op.ptr->outputs[0]));
   t->op = op;
   return t;
 }
@@ -102,12 +102,12 @@ Op Model::get_or_create_pool2d(Tensor _input, Tensor _weight,
   //           strideH, strideW, padding, activation, _type)
   Pool2DKey key(_input, _type, _kernelH, _kernelW, _strideH, _strideW,
                 _padding, _activation);
-  Pool2D* poolOp;
+  std::shared_ptr<Pool2D> poolOp;
   if (pool2d.find(key) != pool2d.end()) {
     poolOp = pool2d[key];
   } else {
-    poolOp = new Pool2D(this, _input, _weight, _type, _kernelH, _kernelW,
-                        _strideH, _strideW, _padding, _activation);
+    poolOp = std::shared_ptr<Pool2D>(new Pool2D(shared_from_this(), _input, _weight, _type, _kernelH, _kernelW,
+                        _strideH, _strideW, _padding, _activation));
     measure_pool2d_cost(poolOp);
     pool2d[key] = poolOp;
   }
@@ -117,7 +117,7 @@ Op Model::get_or_create_pool2d(Tensor _input, Tensor _weight,
   return ret;
 }
 
-Pool2D::Pool2D(Model* _model, Tensor _input,
+Pool2D::Pool2D(std::shared_ptr<Model> _model, Tensor _input,
                Tensor _weight, OpType _type,
                int _kernelH, int _kernelW,
                int _strideH, int _strideW,

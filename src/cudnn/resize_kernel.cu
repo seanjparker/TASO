@@ -35,7 +35,7 @@ void Resize::forward(bool block)
     checkCUDA(cudaDeviceSynchronize());
 }
 
-void Model::measure_resize_cost(Resize* resize)
+void Model::measure_resize_cost(std::shared_ptr<Resize> resize)
 {
   // FIXME: assume the cost is zero for now
   resize->runtime = 0;

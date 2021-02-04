@@ -22,7 +22,7 @@ TensorHandle Graph::mul(const TensorHandle x,
   Op op = model->get_or_create_mul(*x, *y);
   add_edge(x->op, op, x->idx, 0);
   add_edge(y->op, op, y->idx, 1);
-  TensorHandle t = new Tensor(op.ptr->outputs[0]);
+  TensorHandle t = std::shared_ptr<Tensor>(new Tensor(op.ptr->outputs[0]));
   t->op = op;
   return t;
 }
@@ -31,11 +31,11 @@ Op Model::get_or_create_mul(const Tensor& x,
                             const Tensor& y)
 {
   MulKey key(x, y);
-  Mul* mulOp;
+  std::shared_ptr<Mul> mulOp;
   if (mul.find(key) != mul.end()) {
     mulOp = mul[key];
   } else {
-    mulOp = new Mul(this, x, y);
+    mulOp = std::shared_ptr<Mul>(new Mul(shared_from_this(), x, y));
     measure_mul_cost(mulOp);
     mul[key] = mulOp;
   }
@@ -45,7 +45,7 @@ Op Model::get_or_create_mul(const Tensor& x,
   return ret;
 }
 
-Mul::Mul(Model* _model, const Tensor& x, const Tensor& y)
+Mul::Mul(std::shared_ptr<Model> _model, const Tensor& x, const Tensor& y)
 : OpBase(x, y, _model, OP_MUL)
 {
   // TODO: support broadcast

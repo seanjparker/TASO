@@ -43,7 +43,7 @@ TensorHandle Graph::element(OpType type,
   Op op = model->get_or_create_element(type, *t1, *t2);
   add_edge(t1->op, op, t1->idx, 0);
   add_edge(t2->op, op, t2->idx, 1);
-  TensorHandle t = new Tensor(op.ptr->outputs[0]);
+  TensorHandle t = std::shared_ptr<Tensor>(new Tensor(op.ptr->outputs[0]));
   t->op = op;
   return t;
 }
@@ -57,11 +57,11 @@ Op Model::get_or_create_element(OpType type,
   }
   // key is (inputN, inputC, inputH, inputW, type)
   ElementKey key(t1, t2, type);
-  Element* eleOp;
+  std::shared_ptr<Element> eleOp;
   if (element.find(key) != element.end()) {
     eleOp = element[key];
   } else {
-    eleOp = new Element(this, type, t1, t2);
+    eleOp = std::shared_ptr<Element>(new Element(shared_from_this(), type, t1, t2));
     measure_element_cost(eleOp);
     element[key] = eleOp;
   }
@@ -71,7 +71,7 @@ Op Model::get_or_create_element(OpType type,
   return ret;
 }
 
-Element::Element(Model* _model, OpType _type,
+Element::Element(std::shared_ptr<Model> _model, OpType _type,
                  const Tensor& _t1,
                  const Tensor& _t2)
 : OpBase(_t1, _t2, _model, _type)

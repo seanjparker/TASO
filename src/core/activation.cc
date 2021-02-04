@@ -21,7 +21,7 @@ TensorHandle Graph::leakyrelu(const TensorHandle _input, float alpha, bool _inPl
   Op op = model->get_or_create_activation(*_input, OP_LEAKYRELU, _inPlace);
   assert(op != Op::INVALID_OP);
   add_edge(_input->op, op, _input->idx, 0);
-  TensorHandle t = new Tensor(op.ptr->outputs[0]);
+  TensorHandle t = std::shared_ptr<Tensor>(new Tensor(op.ptr->outputs[0]));
   t->op = op;
   return t;
 }
@@ -31,7 +31,7 @@ TensorHandle Graph::relu(const TensorHandle _input, bool _inPlace)
   Op op = model->get_or_create_activation(*_input, OP_RELU, _inPlace);
   assert(op != Op::INVALID_OP);
   add_edge(_input->op, op, _input->idx, 0);
-  TensorHandle t = new Tensor(op.ptr->outputs[0]);
+  TensorHandle t = std::shared_ptr<Tensor>(new Tensor(op.ptr->outputs[0]));
   t->op = op;
   return t;
 }
@@ -41,7 +41,7 @@ TensorHandle Graph::sigmoid(const TensorHandle _input, bool _inPlace)
   Op op = model->get_or_create_activation(*_input, OP_SIGMOID, _inPlace);
   assert(op != Op::INVALID_OP);
   add_edge(_input->op, op, _input->idx, 0);
-  TensorHandle t = new Tensor(op.ptr->outputs[0]);
+  TensorHandle t = std::shared_ptr<Tensor>(new Tensor(op.ptr->outputs[0]));
   t->op = op;
   return t;
 }
@@ -51,7 +51,7 @@ TensorHandle Graph::tanh(const TensorHandle _input, bool _inPlace)
   Op op = model->get_or_create_activation(*_input, OP_TANH, _inPlace);
   assert(op != Op::INVALID_OP);
   add_edge(_input->op, op, _input->idx, 0);
-  TensorHandle t = new Tensor(op.ptr->outputs[0]);
+  TensorHandle t = std::shared_ptr<Tensor>(new Tensor(op.ptr->outputs[0]));
   t->op = op;
   return t;
 }
@@ -60,11 +60,11 @@ Op Model::get_or_create_activation(Tensor _input, OpType _type, bool _inPlace)
 {
   // keys are (inputN, inputC, inputH, inputW, _type, _inPlace)
   ActivationKey key(_input, _type, _inPlace);
-  Activation* actOp;
+  std::shared_ptr<Activation> actOp;
   if (activation.find(key) != activation.end()) {
     actOp = activation[key];
   } else {
-    actOp = new Activation(this, _input, _type, _inPlace);
+    actOp = std::shared_ptr<Activation>(new Activation(shared_from_this(), _input, _type, _inPlace));
     measure_activation_cost(actOp);
     activation[key] = actOp;
   }
@@ -74,7 +74,7 @@ Op Model::get_or_create_activation(Tensor _input, OpType _type, bool _inPlace)
   return ret;
 }
 
-Activation::Activation(Model* _model, Tensor _input, OpType _type, bool _inPlace)
+Activation::Activation(std::shared_ptr<Model> _model, Tensor _input, OpType _type, bool _inPlace)
 : OpBase(_input, _model, _type), inPlace(_inPlace)
 {
   numOutputs = 1;

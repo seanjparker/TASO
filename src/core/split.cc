@@ -23,7 +23,7 @@ void Graph::split(const TensorHandle _input, int _axis,
   Op op = model->get_or_create_split(*_input, _axis, _sizes);
   add_edge(_input->op, op, _input->idx, 0);
   for (size_t i = 0; i < _sizes.size(); i++) {
-    _outputs[i] = new Tensor(op.ptr->outputs[i]);
+    _outputs[i] = std::shared_ptr<Tensor>(new Tensor(op.ptr->outputs[i]));
     _outputs[i]->op = op;
   }
 }
@@ -83,11 +83,11 @@ Op Model::get_or_create_split(const Tensor& _input, int _axis,
                               const std::vector<int>& _sizes)
 {
   SplitKey key(_input, _axis,_sizes);
-  Split* splitOp;
+  std::shared_ptr<Split> splitOp;
   if (split.find(key) != split.end()) {
     splitOp = split[key];
   } else {
-    splitOp = new Split(this, _input, _axis, _sizes);
+    splitOp = std::shared_ptr<Split>(new Split(shared_from_this(), _input, _axis, _sizes));
     measure_split_cost(splitOp);
     split[key] = splitOp;
   }
@@ -114,9 +114,9 @@ Op Model::get_or_create_split(const Tensor& _input, int _axis, int _n)
   return ret;
 }
 
-Split::Split(Model* _model, const Tensor& _input,
+Split::Split(std::shared_ptr<Model> _model, const Tensor& _input,
              int _axis, const std::vector<int>& _sizes)
-  : OpBase(_input, model, OP_SPLIT), axis(_axis), sizes(_sizes)
+  : OpBase(_input, _model, OP_SPLIT), axis(_axis), sizes(_sizes)
 {
   assert(_sizes.size() <= MAX_NUM_OUTPUTS);
   numOutputs = _sizes.size();
@@ -199,7 +199,7 @@ void Split::collect_costs(float& exe_time, float& flops,
          numOutputs, 0.0f, exe_time);
 }
 
-void Model::measure_split_cost(Split* split)
+void Model::measure_split_cost(std::shared_ptr<Split> split)
 {
   // We assume split cost is zero
   split->runtime = 0;

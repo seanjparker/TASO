@@ -122,7 +122,7 @@ void Matmul::set_layout(void)
   assert(size == outputs[0].volume());
 }
 
-void Model::measure_matmul_cost(Matmul* mm)
+void Model::measure_matmul_cost(std::shared_ptr<Matmul> mm)
 {
   const float alpha = 1.0f;
   const float beta = 0.0f;

@@ -36,7 +36,7 @@ void Mul::forward(bool block)
     checkCUDA(cudaDeviceSynchronize());
 }
 
-void Model::measure_mul_cost(Mul* m)
+void Model::measure_mul_cost(std::shared_ptr<Mul> m)
 {
   assert(false);
 }

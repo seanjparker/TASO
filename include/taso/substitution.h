@@ -51,9 +51,9 @@ class OpX;
 class GraphXfer;
 struct TensorX {
   TensorX(void): op(NULL), idx(0) {}
-  TensorX(OpX* _op, int _idx): op(_op), idx(_idx) {}
-  Tensor to_tensor(const GraphXfer* xfer) const;
-  OpX* op;
+  TensorX(std::shared_ptr<OpX> _op, int _idx): op(_op), idx(_idx) {}
+  Tensor to_tensor(const std::shared_ptr<GraphXfer> xfer) const;
+  std::shared_ptr<OpX> op;
   int idx;
 };
 
@@ -64,7 +64,7 @@ struct TensorXCompare {
   };
 };
 
-class OpX {
+class OpX : std::enable_shared_from_this<OpX> {
 public:
   OpX(const OpX& _op);
   OpX(OpType _type, TensorX input0, int numOutputs = 1);
@@ -95,28 +95,28 @@ public:
   std::vector<PMConstraint> constraints;
   OpType type;
   Op mapOp;
-  DstOp *mapInput, *mapOutput;
+  std::shared_ptr<DstOp> mapInput, mapOutput;
 };
 
 class DstOp {
 public:
   DstOp(OpType _type);
-  DstOp(OpType _type, const SrcOp* op);
-  DstOp(OpType _type, const SrcOp* op1, const SrcOp* op2);
-  virtual Op create_operator(Model* model) = 0;
+  DstOp(OpType _type, const std::shared_ptr<SrcOp> op);
+  DstOp(OpType _type, const std::shared_ptr<SrcOp> op1, const std::shared_ptr<SrcOp> op2);
+  virtual Op create_operator(std::shared_ptr<Model> model) = 0;
 public:
   OpType type;
   Op mapOp;
-  SrcOp *mapInput, *mapOutput;
-  SrcOp *srcOps[MAX_NUM_INPUTS];
+  std::shared_ptr<SrcOp> mapInput, mapOutput;
+  std::shared_ptr<SrcOp> srcOps[MAX_NUM_INPUTS];
 };
 
 template <typename OpType>
 struct SubEdge {
-  SubEdge(OpType* _srcOp, OpType* _dstOp, int _srcIdx, int _dstIdx)
+  SubEdge(std::shared_ptr<OpType> _srcOp, std::shared_ptr<OpType> _dstOp, int _srcIdx, int _dstIdx)
   : srcOp(_srcOp), dstOp(_dstOp), srcIdx(_srcIdx), dstIdx(_dstIdx) {}
   int srcIdx, dstIdx;
-  OpType *srcOp, *dstOp;
+  std::shared_ptr<OpType> srcOp, dstOp;
 };
 
 template<typename OpType>
@@ -132,92 +132,92 @@ struct SubEdgeCompare {
 
 class GraphCompare {
 public:
-  bool operator() (Graph* lhs, Graph* rhs) {
+  bool operator() (std::shared_ptr<Graph> lhs, std::shared_ptr<Graph> rhs) {
     return lhs->total_cost() > rhs->total_cost();
   }
 };
 
-class GraphXfer {
+class GraphXfer : std::enable_shared_from_this<GraphXfer> {
 public:
-  GraphXfer(Model* _model);
-  static void load_graph_xfer_from_pb_file(Model* model,
-                                           std::vector<GraphXfer*>& xfers,
+  GraphXfer(std::shared_ptr<Model> _model);
+  static void load_graph_xfer_from_pb_file(std::shared_ptr<Model> model,
+                                           std::vector<std::shared_ptr<GraphXfer>>& xfers,
                                            std::string filename);
   TensorX new_tensor(void);
-  bool can_match(OpX* srcOp, Op op, Graph* graph);
-  void match(OpX* srcOp, Op op, Graph* graph);
-  void unmatch(OpX* srcOp, Op op, Graph* graph);
+  bool can_match(std::shared_ptr<OpX> srcOp, Op op, std::shared_ptr<Graph> graph);
+  void match(std::shared_ptr<OpX> srcOp, Op op, std::shared_ptr<Graph> graph);
+  void unmatch(std::shared_ptr<OpX> srcOp, Op op, std::shared_ptr<Graph> graph);
   void create_operator_from_pb(const GraphSubst::Operator& pbOp,
                                std::map<int, TensorX>& mappedInputs,
                                bool isSrcOp = true);
-  OpX* create_activation(TensorX input, OpType type, bool isSrcOp = true);
-  OpX* create_conv2d(TensorX input, TensorX weight,
+  std::shared_ptr<OpX> create_activation(TensorX input, OpType type, bool isSrcOp = true);
+  std::shared_ptr<OpX> create_conv2d(TensorX input, TensorX weight,
                      //int kernelH, int kernelW,
                      int strideH, int strideW,
                      PaddingMode padding,
                      ActiMode activation,
                      bool isSrcOp = true);
-  OpX* create_batchnorm(TensorX input, TensorX scale, TensorX bias,
+  std::shared_ptr<OpX> create_batchnorm(TensorX input, TensorX scale, TensorX bias,
                         TensorX mean, TensorX var, bool isSrcOp = true);
-  OpX* create_element(TensorX input0, TensorX input1,
+  std::shared_ptr<OpX> create_element(TensorX input0, TensorX input1,
                       OpType type, bool isSrcOp = true);
-  OpX* create_fuse_conv_batchnorm(TensorX conv_w, TensorX scale,
+  std::shared_ptr<OpX> create_fuse_conv_batchnorm(TensorX conv_w, TensorX scale,
                                   TensorX bias, TensorX mean, TensorX var,
                                   bool isSrcOp = true);
-  OpX* create_fuse_conv_batchnorm_alpha_var(TensorX conv_w, TensorX scale, 
+  std::shared_ptr<OpX> create_fuse_conv_batchnorm_alpha_var(TensorX conv_w, TensorX scale, 
                                             TensorX var, bool isSrcOp = true);
-  OpX* create_fuse_conv_batchnorm_bias(TensorX scale,
+  std::shared_ptr<OpX> create_fuse_conv_batchnorm_bias(TensorX scale,
                                            TensorX bias, TensorX mean,
                                            TensorX var, bool isSrcOp = true);
-  OpX* create_broadcast_add(TensorX data, TensorX bias, bool isSrcOp = true);
-  OpX* create_pool2d_avg(TensorX input, TensorX weight,
+  std::shared_ptr<OpX> create_broadcast_add(TensorX data, TensorX bias, bool isSrcOp = true);
+  std::shared_ptr<OpX> create_pool2d_avg(TensorX input, TensorX weight,
                          //int kernelH, int kernelW,
                          int strideH, int strideW,
                          PaddingMode padding,
                          ActiMode activation,
                          bool isSrcOp = true);
-  OpX* create_matmul(TensorX input, TensorX weight,
+  std::shared_ptr<OpX> create_matmul(TensorX input, TensorX weight,
                      ActiMode activation, bool isSrcOp = true);
-  OpX* create_mul(TensorX x, TensorX y, bool isSrcOp = true);
-  OpX* create_transpose(TensorX input, int numDim, int* perm, int shuffle);
-  OpX* create_enlarge(TensorX w1, TensorX w2, bool isSrcOp = true);
-  OpX* create_merge_gconv(TensorX w, int count, bool isSrcOp = true);
-  OpX* create_concat(int axis, int numDim, TensorX in1, TensorX in2, bool isSrcOp = true);
-  OpX* create_concat(int axis, int numDim, int n, TensorX* ins, bool isSrcOp = true);
-  OpX* create_split(TensorX input, int axis, int n, bool isSrcOp = true);
-  void add_src_op(SrcOp* op);
-  void add_dst_op(DstOp* op);
-  void add_src_edge(SrcOp* src, SrcOp* tgt, int srcIdx = 0, int dstIdx = 0);
-  void add_dst_edge(DstOp* src, DstOp* tgt, int srcIdx = 0, int dstIdx = 0);
-  bool add_constraint(Compare comp, SrcOp* src, PMParameter srcPara,
-                      SrcOp* tgt, PMParameter dstPara);
-  bool map_input(SrcOp* src, DstOp* dst);
-  bool map_output(SrcOp* src, DstOp* dst);
+  std::shared_ptr<OpX> create_mul(TensorX x, TensorX y, bool isSrcOp = true);
+  std::shared_ptr<OpX> create_transpose(TensorX input, int numDim, int* perm, int shuffle);
+  std::shared_ptr<OpX> create_enlarge(TensorX w1, TensorX w2, bool isSrcOp = true);
+  std::shared_ptr<OpX> create_merge_gconv(TensorX w, int count, bool isSrcOp = true);
+  std::shared_ptr<OpX> create_concat(int axis, int numDim, TensorX in1, TensorX in2, bool isSrcOp = true);
+  std::shared_ptr<OpX> create_concat(int axis, int numDim, int n, TensorX* ins, bool isSrcOp = true);
+  std::shared_ptr<OpX> create_split(TensorX input, int axis, int n, bool isSrcOp = true);
+  void add_src_op(std::shared_ptr<SrcOp> op);
+  void add_dst_op(std::shared_ptr<DstOp> op);
+  void add_src_edge(std::shared_ptr<SrcOp> src, std::shared_ptr<SrcOp> tgt, int srcIdx = 0, int dstIdx = 0);
+  void add_dst_edge(std::shared_ptr<DstOp> src, std::shared_ptr<DstOp> tgt, int srcIdx = 0, int dstIdx = 0);
+  bool add_constraint(Compare comp, std::shared_ptr<SrcOp> src, PMParameter srcPara,
+                      std::shared_ptr<SrcOp> tgt, PMParameter dstPara);
+  bool map_input(std::shared_ptr<SrcOp> src, std::shared_ptr<DstOp> dst);
+  bool map_output(std::shared_ptr<SrcOp> src, std::shared_ptr<DstOp> dst);
   bool map_output(TensorX src, TensorX dst);
-  void run(int depth, Graph* graph,
-           std::priority_queue<Graph*, std::vector<Graph*>, GraphCompare>&,
+  void run(int depth, std::shared_ptr<Graph> graph,
+           std::priority_queue<std::shared_ptr<Graph>, std::vector<std::shared_ptr<Graph>>, GraphCompare>&,
            std::set<size_t>&, float threshold, int maxNumOps);
-  Graph* create_new_graph(Graph* graph);
-  bool create_new_operator(const OpX* opx, Op& op);
+  std::shared_ptr<Graph> create_new_graph(std::shared_ptr<Graph> graph);
+  bool create_new_operator(const std::shared_ptr<OpX> opx, Op& op);
 
   // built-in substitutions
-  static GraphXfer* create_conv_relu(Model* model, int strideH, int strideW, PaddingMode padding);
-  static GraphXfer* create_conv_batch(Model* model, int strideH, int strideW, PaddingMode padding);
-  static GraphXfer* create_conv_mul(Model* model, int strideH, int strideW, PaddingMode padding);
-  static GraphXfer* create_conv_add(Model* model, int strideH, int strideW, PaddingMode padding);
-  static GraphXfer* create_enlarge_merge_convs(Model* model, ActiMode activation);
-  static GraphXfer* create_merge_group_convs(Model* model, int strideH, int strideW, ActiMode activation);
+  static std::shared_ptr<GraphXfer> create_conv_relu(std::shared_ptr<Model> model, int strideH, int strideW, PaddingMode padding);
+  static std::shared_ptr<GraphXfer> create_conv_batch(std::shared_ptr<Model> model, int strideH, int strideW, PaddingMode padding);
+  static std::shared_ptr<GraphXfer> create_conv_mul(std::shared_ptr<Model> model, int strideH, int strideW, PaddingMode padding);
+  static std::shared_ptr<GraphXfer> create_conv_add(std::shared_ptr<Model> model, int strideH, int strideW, PaddingMode padding);
+  static std::shared_ptr<GraphXfer> create_enlarge_merge_convs(std::shared_ptr<Model> model, ActiMode activation);
+  static std::shared_ptr<GraphXfer> create_merge_group_convs(std::shared_ptr<Model> model, int strideH, int strideW, ActiMode activation);
 public:
-  Model* model;
+  std::shared_ptr<Model> model;
   int tensorId;
   //std::vector<TwoOpConstraint> constraints;
-  //std::map<SrcOp*, std::set<SubEdge<SrcOp>, SubEdgeCompare<SrcOp> > > srcInEdges, srcOutEdges;
-  //std::map<DstOp*, std::set<SubEdge<DstOp>, SubEdgeCompare<DstOp> > > dstInEdges, dstOutEdges;
-  std::map<Op, OpX*, OpCompare> mappedOps;
+  //std::map<std::shared_ptr<SrcOp>, std::set<SubEdge<SrcOp>, SubEdgeCompare<SrcOp> > > srcInEdges, srcOutEdges;
+  //std::map<std::shared_ptr<DstOp>, std::set<SubEdge<DstOp>, SubEdgeCompare<DstOp> > > dstInEdges, dstOutEdges;
+  std::map<Op, std::shared_ptr<OpX>, OpCompare> mappedOps;
   std::multimap<int, std::pair<Op, int> > mappedInputs;
   std::map<TensorX, TensorX, TensorXCompare> mappedOutputs;
-  std::vector<OpX*> srcOps;
-  std::vector<OpX*> dstOps;
+  std::vector<std::shared_ptr<OpX>> srcOps;
+  std::vector<std::shared_ptr<OpX>> dstOps;
 };
 
 } // namespace XFlow

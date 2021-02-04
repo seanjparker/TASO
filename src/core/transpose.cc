@@ -37,7 +37,7 @@ TensorHandle Graph::transpose(const TensorHandle _input,
   Op op = model->get_or_create_transpose(*_input, perm, _shuffle);
   assert(op != Op::INVALID_OP);
   add_edge(_input->op, op, _input->idx, 0);
-  TensorHandle t = new Tensor(op.ptr->outputs[0]);
+  TensorHandle t = std::shared_ptr<Tensor>(new Tensor(op.ptr->outputs[0]));
   t->op = op;
   return t;
 }
@@ -70,11 +70,11 @@ Op Model::get_or_create_transpose(Tensor _input,
                                   bool _shuffle)
 {
   TransposeKey key(_input, perm, _shuffle);
-  Transpose* transposeOp;
+  std::shared_ptr<Transpose> transposeOp;
   if (transpose.find(key) != transpose.end()) {
     transposeOp = transpose[key];
   } else {
-    transposeOp = new Transpose(this, _input, perm, _shuffle);
+    transposeOp = std::shared_ptr<Transpose>(new Transpose(shared_from_this(), _input, perm, _shuffle));
     measure_transpose_cost(transposeOp);
     transpose[key] = transposeOp;
   }
@@ -84,7 +84,7 @@ Op Model::get_or_create_transpose(Tensor _input,
   return ret;
 }
 
-Transpose::Transpose(Model* _model, Tensor _input,
+Transpose::Transpose(std::shared_ptr<Model> _model, Tensor _input,
                      const std::vector<int>& _perm,
                      bool _shuffle)
 : OpBase(_input, _model, OP_TRANSPOSE), shuffle(_shuffle)

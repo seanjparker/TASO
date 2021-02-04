@@ -21,7 +21,7 @@ void Graph::topk(const TensorHandle _input,
                  bool _largest, bool _sorted,
                  Tensor* outputs)
 {
-  Op op = model->get_or_create_topk(*_input, _numk, _axis, _largest, _sorted);
+  Op op = model->get_or_create_topk(*_input, _axis, _numk, _largest, _sorted);
   assert(op != Op::INVALID_OP);
   add_edge(_input->op, op, _input->idx, 0);
   outputs[0] = op.ptr->outputs[0];
@@ -35,11 +35,11 @@ Op Model::get_or_create_topk(const Tensor& _input,
                              bool _largest, bool _sorted)
 {
   TopKKey key(_input, _axis, _numk, _largest, _sorted);
-  TopK* topkOp;
+  std::shared_ptr<TopK> topkOp;
   if (topk.find(key) != topk.end()) {
     topkOp = topk[key];
   } else {
-    topkOp = new TopK(this, _input, _axis, _numk, _largest, _sorted);
+    topkOp = std::shared_ptr<TopK>(new TopK(shared_from_this(), _input, _axis, _numk, _largest, _sorted));
     measure_topk_cost(topkOp);
     topk[key] = topkOp;
   }
@@ -49,7 +49,7 @@ Op Model::get_or_create_topk(const Tensor& _input,
   return ret;
 }
 
-TopK::TopK(Model* _model, const Tensor& _input,
+TopK::TopK(std::shared_ptr<Model> _model, const Tensor& _input,
            int _axis, int _numk, bool _largest, bool _sorted)
 : OpBase(_input, _model, OP_TOPK), axis(_axis),
   largest(_largest), sorted(_sorted)

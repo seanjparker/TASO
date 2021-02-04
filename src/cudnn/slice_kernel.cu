@@ -35,7 +35,7 @@ void Slice::forward(bool block)
     checkCUDA(cudaDeviceSynchronize());
 }
 
-void Model::measure_slice_cost(Slice* slice)
+void Model::measure_slice_cost(std::shared_ptr<Slice> slice)
 {
   // FIXME: assume the cost is zero for now
   slice->runtime = 0;

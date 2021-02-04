@@ -38,7 +38,7 @@ void ElementWiseUnary::forward(bool block)
     checkCUDA(cudaDeviceSynchronize());
 }
 
-void Model::measure_elementwise_unary_cost(ElementWiseUnary* unary)
+void Model::measure_elementwise_unary_cost(std::shared_ptr<ElementWiseUnary> unary)
 {
   unary->runtime = 0;
   if (print_cost)

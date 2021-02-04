@@ -23,7 +23,7 @@ TensorHandle Graph::constant(int ndim, int* dims, OpType type)
   // we need to manually add op to the inedges
   assert(inEdges.find(op) == inEdges.end());
   inEdges[op];
-  TensorHandle t = new Tensor(op.ptr->outputs[0]);
+  TensorHandle t = std::shared_ptr<Tensor>(new Tensor(op.ptr->outputs[0]));
   t->op = op;
   return t;
 }
@@ -31,11 +31,11 @@ TensorHandle Graph::constant(int ndim, int* dims, OpType type)
 Op Model::get_or_create_constant(int ndim, int* dims, OpType _type)
 {
   ConstantKey key(ndim, dims, _type);
-  Constant* constantOp;
+  std::shared_ptr<Constant> constantOp;
   if (constant.find(key) != constant.end()) {
     constantOp = constant[key];
   } else {
-    constantOp = new Constant(this, ndim, dims, _type);
+    constantOp = std::shared_ptr<Constant>(new Constant(shared_from_this(), ndim, dims, _type));
     constantOp->runtime = 0.0f;
     constant[key] = constantOp;
   }
@@ -45,7 +45,7 @@ Op Model::get_or_create_constant(int ndim, int* dims, OpType _type)
   return ret;
 }
 
-Constant::Constant(Model* _model, int ndim, int* dims, OpType _type)
+Constant::Constant(std::shared_ptr<Model> _model, int ndim, int* dims, OpType _type)
 : OpBase(_model, _type)
 {
   numOutputs = 1;

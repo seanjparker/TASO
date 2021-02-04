@@ -21,7 +21,7 @@ TensorHandle Graph::cast(const TensorHandle _input, DataType _datatype)
   Op op = model->get_or_create_cast(*_input, _datatype);
   assert(op != Op::INVALID_OP);
   add_edge(_input->op, op, _input->idx, 0);
-  TensorHandle t = new Tensor(op.ptr->outputs[0]);
+  TensorHandle t = std::shared_ptr<Tensor>(new Tensor(op.ptr->outputs[0]));
   t->op = op;
   return t;
 }
@@ -29,11 +29,11 @@ TensorHandle Graph::cast(const TensorHandle _input, DataType _datatype)
 Op Model::get_or_create_cast(const Tensor& _input, DataType _datatype)
 {
   CastKey key(_input, _datatype);
-  Cast* castOp;
+  std::shared_ptr<Cast> castOp;
   if (cast.find(key) != cast.end()) {
     castOp = cast[key];
   } else {
-    castOp = new Cast(this, _input, _datatype);
+    castOp = std::shared_ptr<Cast>(new Cast(shared_from_this(), _input, _datatype));
     measure_cast_cost(castOp);
     cast[key] = castOp;
   }
@@ -43,7 +43,7 @@ Op Model::get_or_create_cast(const Tensor& _input, DataType _datatype)
   return ret;
 }
 
-Cast::Cast(Model* _model, const Tensor& _input, DataType _datatype)
+Cast::Cast(std::shared_ptr<Model> _model, const Tensor& _input, DataType _datatype)
 : OpBase(_input, _model, OP_CAST)
 {
   numOutputs = 1;

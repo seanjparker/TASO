@@ -26,7 +26,7 @@ TensorHandle Graph::merge_gconv(const TensorHandle _weight,
   Op op = model->get_or_create_merge_gconv(*_weight, count);
   assert(op != Op::INVALID_OP);
   add_edge(_weight->op, op, _weight->idx, 0);
-  TensorHandle t = new Tensor(op.ptr->outputs[0]);
+  TensorHandle t = std::shared_ptr<Tensor>(new Tensor(op.ptr->outputs[0]));
   t->op = op;
   return t;
 }
@@ -41,11 +41,11 @@ Op Model::get_or_create_merge_gconv(const Tensor& _weight,
   //if (_input.dim[1] % (_weight.dim[1] * count) != 0)
     //return Op::INVALID_OP;
   MergeGConvKey key(_weight, count);
-  MergeGConv* mergeOp;
+  std::shared_ptr<MergeGConv> mergeOp;
   if (merge_gconv.find(key) != merge_gconv.end()) {
     mergeOp = merge_gconv[key];
   } else {
-    mergeOp = new MergeGConv(this, _weight, count);
+    mergeOp = std::shared_ptr<MergeGConv>(new MergeGConv(shared_from_this(), _weight, count));
     mergeOp->runtime = 0.0f;
     merge_gconv[key] = mergeOp;
   }
@@ -55,7 +55,7 @@ Op Model::get_or_create_merge_gconv(const Tensor& _weight,
   return ret;
 }
 
-MergeGConv::MergeGConv(Model* _model,
+MergeGConv::MergeGConv(std::shared_ptr<Model> _model,
                        const Tensor& _weight,
                        int _count)
 : OpBase(_weight, _model, OP_MERGE_GCONV), count(_count)

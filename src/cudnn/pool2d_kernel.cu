@@ -86,7 +86,7 @@ void Pool2D::forward(bool block)
     checkCUDA(cudaDeviceSynchronize());
 }
 
-void Model::measure_pool2d_cost(Pool2D* pool)
+void Model::measure_pool2d_cost(std::shared_ptr<Pool2D> pool)
 {
   const float alpha = 1.0f;
   const float beta = 0.0f;

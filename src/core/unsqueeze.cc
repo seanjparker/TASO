@@ -21,7 +21,7 @@ TensorHandle Graph::unsqueeze(const TensorHandle input,
 {
   Op op = model->get_or_create_unsqueeze(*input, axes);
   add_edge(input->op, op, input->idx, 0);
-  TensorHandle t = new Tensor(op.ptr->outputs[0]);
+  TensorHandle t = std::shared_ptr<Tensor>(new Tensor(op.ptr->outputs[0]));
   t->op = op;
   return t;
 }
@@ -30,11 +30,11 @@ Op Model::get_or_create_unsqueeze(const Tensor& input,
                                   const std::vector<int>& axes)
 {
   UnsqueezeKey key(input, axes);
-  Unsqueeze* unsqzOp;
+  std::shared_ptr<Unsqueeze> unsqzOp;
   if (unsqueeze.find(key) != unsqueeze.end()) {
     unsqzOp = unsqueeze[key];
   } else {
-    unsqzOp = new Unsqueeze(this, input, axes);
+    unsqzOp = std::shared_ptr<Unsqueeze>(new Unsqueeze(shared_from_this(), input, axes));
     measure_unsqueeze_cost(unsqzOp);
     unsqueeze[key] = unsqzOp;
   }
@@ -44,7 +44,7 @@ Op Model::get_or_create_unsqueeze(const Tensor& input,
   return ret;
 }
 
-Unsqueeze::Unsqueeze(Model* _model, const Tensor& _input,
+Unsqueeze::Unsqueeze(std::shared_ptr<Model> _model, const Tensor& _input,
                      const std::vector<int>& _axes)
 : OpBase(_input, _model, OP_UNSQUEEZE), axes(_axes)
 {

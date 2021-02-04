@@ -36,7 +36,7 @@ void TopK::forward(bool block)
     checkCUDA(cudaDeviceSynchronize());
 }
 
-void Model::measure_topk_cost(TopK* topk)
+void Model::measure_topk_cost(std::shared_ptr<TopK> topk)
 {
   // TODO: use cudnn reduce tensor
   topk->runtime = 0;

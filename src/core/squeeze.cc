@@ -21,7 +21,7 @@ TensorHandle Graph::squeeze(const TensorHandle input,
 {
   Op op = model->get_or_create_squeeze(*input, axes);
   add_edge(input->op, op, input->idx, 0);
-  TensorHandle t = new Tensor(op.ptr->outputs[0]);
+  TensorHandle t = std::shared_ptr<Tensor>(new Tensor(op.ptr->outputs[0]));
   t->op = op;
   return t;
 }
@@ -31,11 +31,11 @@ Op Model::get_or_create_squeeze(const Tensor& input,
 {
   // key is (input, axes)
   SqueezeKey key(input, axes);
-  Squeeze* squeezeOp;
+  std::shared_ptr<Squeeze> squeezeOp;
   if (squeeze.find(key) != squeeze.end()) {
     squeezeOp = squeeze[key];
   } else {
-    squeezeOp = new Squeeze(this, input, axes);
+    squeezeOp = std::shared_ptr<Squeeze>(new Squeeze(shared_from_this(), input, axes));
     measure_squeeze_cost(squeezeOp);
     squeeze[key] = squeezeOp;
   }
@@ -45,7 +45,7 @@ Op Model::get_or_create_squeeze(const Tensor& input,
   return ret;
 }
 
-Squeeze::Squeeze(Model* _model, const Tensor& _input,
+Squeeze::Squeeze(std::shared_ptr<Model> _model, const Tensor& _input,
                  const std::vector<int>& _axes)
 : OpBase(_input, _model, OP_SQUEEZE), axes(_axes)
 {

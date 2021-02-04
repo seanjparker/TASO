@@ -33,7 +33,7 @@ void Where::forward(bool block)
     checkCUDA(cudaDeviceSynchronize());
 }
 
-void Model::measure_where_cost(Where* where)
+void Model::measure_where_cost(std::shared_ptr<Where> where)
 {
   where->runtime = 0;
 }

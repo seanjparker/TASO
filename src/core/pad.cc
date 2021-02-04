@@ -26,7 +26,7 @@ TensorHandle Graph::pad(const TensorHandle _input,
   Op op = model->get_or_create_pad(*_input, _pad_before, _pad_after, _pad_value);
   assert(op != Op::INVALID_OP);
   add_edge(_input->op, op, _input->idx, 0);
-  TensorHandle t = new Tensor(op.ptr->outputs[0]);
+  TensorHandle t = std::shared_ptr<Tensor>(new Tensor(op.ptr->outputs[0]));
   t->op = op;
   return t;
 }
@@ -37,11 +37,11 @@ Op Model::get_or_create_pad(const Tensor& _input,
                             float _pad_value)
 {
   PadKey key(_input, _pad_before, _pad_after, _pad_value);
-  Pad* padOp;
+  std::shared_ptr<Pad> padOp;
   if (pad.find(key) != pad.end()) {
     padOp = pad[key];
   } else {
-    padOp = new Pad(this, _input, _pad_before, _pad_after, _pad_value);
+    padOp = std::shared_ptr<Pad>(new Pad(shared_from_this(), _input, _pad_before, _pad_after, _pad_value));
     measure_pad_cost(padOp);
     pad[key] = padOp;
   }
@@ -51,7 +51,7 @@ Op Model::get_or_create_pad(const Tensor& _input,
   return ret;
 }
 
-Pad::Pad(Model* _model, const Tensor& _input,
+Pad::Pad(std::shared_ptr<Model> _model, const Tensor& _input,
          const std::vector<int>& _pad_before,
          const std::vector<int>& _pad_after,
          float _pad_value)

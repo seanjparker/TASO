@@ -55,10 +55,12 @@ namespace taso {
 #define MAX_NUM_INPUTS 6
 #define MAX_NUM_OUTPUTS 6
 #define BATCH_SIZE 1
-#define MAX_TENSOR_SIZE 512 * 1024 * 1024 // 512MB
+//#define MAX_TENSOR_SIZE 512 * 1024 * 1024 // 512MB
+#define MAX_TENSOR_SIZE 128 * 1024 * 1024 // 128MB
 #define REPEAT_TIMES 32
 #define WARMUP_TIMES 8
-const size_t WORK_SPACE_SIZE = (size_t)2 * 1024 * 1024 * 1024; // 2GB
+//const size_t WORK_SPACE_SIZE = (size_t)1 * 1024 * 1024 * 1024; // 1GB
+const size_t WORK_SPACE_SIZE = (size_t)512 * 1024 * 1024; // 512MB
 typedef float DATATYPE;
 
 class Model;
@@ -139,7 +141,7 @@ enum OpType {
 
 struct Op {
   Op(void);
-  Op(size_t _guid, OpBase* _ptr)
+  Op(size_t _guid, std::shared_ptr<OpBase> _ptr)
   : guid(_guid), ptr(_ptr) {}
   inline bool operator==(const Op& b) const {
     if (guid != b.guid) return false;
@@ -162,7 +164,7 @@ struct Op {
     ptr = op.ptr;
     return *this;
   }
-  std::string op_to_string(const OpBase* ptr);
+  std::string op_to_string(const std::shared_ptr<OpBase> ptr);
   std::string to_string(void)
   {
     if (ptr != NULL) {
@@ -174,7 +176,7 @@ struct Op {
   }
   static const Op INVALID_OP;
   size_t guid;
-  OpBase* ptr;
+  std::shared_ptr<OpBase> ptr;
 };
 
 struct Edge {
@@ -369,8 +371,8 @@ struct Tensor {
   SplitInfo split[MAX_DIM];
 };
 
-//typedef shared_ptr<Tensor> TensorHandle;
-typedef Tensor* TensorHandle;
+typedef shared_ptr<Tensor> TensorHandle;
+//typedef Tensor* TensorHandle;
 
 enum DataType {
   DT_FLOAT = 111,
@@ -453,18 +455,18 @@ enum PaddingMode {
 
 class OpBase {
 public:
-  OpBase(Model* _model, OpType _type); // No inputs
-  OpBase(const Tensor& input, Model* _model, OpType _type);
+  OpBase(std::shared_ptr<Model> _model, OpType _type); // No inputs
+  OpBase(const Tensor& input, std::shared_ptr<Model> _model, OpType _type);
   OpBase(const Tensor& input0, const Tensor& input1,
-         Model* _model, OpType _type);
+         std::shared_ptr<Model> _model, OpType _type);
   OpBase(const Tensor& input0, const Tensor& input1, const Tensor& input2,
-         Model* _model, OpType _type);
+         std::shared_ptr<Model> _model, OpType _type);
   OpBase(const Tensor& input0, const Tensor& input1, const Tensor& input2,
-         const Tensor& input3, Model* _model, OpType _type);
+         const Tensor& input3, std::shared_ptr<Model> _model, OpType _type);
   OpBase(const Tensor& input0, const Tensor& input1,
          const Tensor& input2, const Tensor& input3,
-         const Tensor& input4, Model* _model, OpType _type);
-  OpBase(int n, Tensor* inputs, Model* _model, OpType _type);
+         const Tensor& input4, std::shared_ptr<Model> _model, OpType _type);
+  OpBase(int n, Tensor* inputs, std::shared_ptr<Model> _model, OpType _type);
   virtual bool get_input_parameter(TNParameter, DIMParameter, int*);
   virtual bool get_int_parameter(PMParameter, int*);
   //virtual bool get_float_parameter(PMParameter, float*);
@@ -477,7 +479,7 @@ public:
 public:
   Tensor inputs[MAX_NUM_INPUTS], outputs[MAX_NUM_OUTPUTS];
   int numInputs, numOutputs;
-  Model *model;
+  std::shared_ptr<Model> model;
   OpType type;
   float runtime;
 #ifdef USE_DNNL
@@ -485,7 +487,7 @@ public:
 #endif
 };
 
-class Graph {
+class Graph : std::enable_shared_from_this<Graph> {
 public:
   Graph();
   TensorHandle new_input(int dim, const int* dims);
@@ -639,8 +641,8 @@ public:
 
   // Helper Functions for Cython
   Op find_op_or_fail(size_t guid);
-  Graph* optimize(float alpha, int budget, bool print_subst);
-  Graph* preprocess_weights(void);
+  std::shared_ptr<Graph> optimize(float alpha, int budget, bool print_subst);
+  std::shared_ptr<Graph> preprocess_weights(void);
   int get_operator_list(Op* opList, size_t maxNumOps);
   int get_input_edges(Edge* opList, size_t guid);
   OpType get_operator_type(size_t guid);
@@ -658,6 +660,7 @@ public:
   bool has_loop(void);
   float total_cost(void);
   float run();
+  float run_memorysafe();
   void print_costs(void);
   void print_measurements(void);
 #ifdef TRT
@@ -670,7 +673,7 @@ private:
   TensorHandle input_wrapper(const TensorHandle _input);
   TensorHandle weight_wrapper(const TensorHandle _weight);
 public:
-  Model *model;
+  std::shared_ptr<Model> model;
   float totalCost;
   std::map<Op, std::set<Edge, EdgeCompare>, OpCompare> inEdges, outEdges;
   struct GraphSubst {
@@ -681,7 +684,7 @@ public:
 
 class Constant : public OpBase {
 public:
-  Constant(Model* _model, int ndim, int* dims, OpType _type);
+  Constant(std::shared_ptr<Model> _model, int ndim, int* dims, OpType _type);
   ~Constant(void);
   void forward(bool block);
   void map(void);
@@ -692,7 +695,7 @@ public:
 
 class Conv2D : public OpBase {
 public:
-  Conv2D(Model* _model, Tensor _input, Tensor _weight,
+  Conv2D(std::shared_ptr<Model> _model, Tensor _input, Tensor _weight,
          int _strideH, int _strideW,
          PaddingMode _padding,
          ActiMode _activation);
@@ -722,7 +725,7 @@ public:
 
 class Matmul : public OpBase {
 public:
-  Matmul(Model* _model, Tensor _input, Tensor _weight,
+  Matmul(std::shared_ptr<Model> _model, Tensor _input, Tensor _weight,
          ActiMode _actiMode);
   ~Matmul(void);
   void forward(bool block);
@@ -758,7 +761,7 @@ public:
 
 class Mul : public OpBase {
 public:
-  Mul(Model* _model, const Tensor& x, const Tensor& y);
+  Mul(std::shared_ptr<Model> _model, const Tensor& x, const Tensor& y);
   ~Mul(void);
   void forward(bool block);
   void map(void);
@@ -769,7 +772,7 @@ public:
 
 class Pool2D : public OpBase {
 public:
-  Pool2D(Model* _model, Tensor _input,
+  Pool2D(std::shared_ptr<Model> _model, Tensor _input,
          Tensor _weight, OpType _type,
          int _kernelH, int _kernelW,
          int _strideH, int _strideW,
@@ -794,7 +797,7 @@ public:
 
 class Activation : public OpBase {
 public:
-  Activation(Model* _model, Tensor _input, OpType _type, bool _inPlace);
+  Activation(std::shared_ptr<Model> _model, Tensor _input, OpType _type, bool _inPlace);
   ~Activation(void);
   bool get_int_parameter(PMParameter para, int*);
   void forward(bool block);
@@ -811,7 +814,7 @@ public:
 
 class BatchNorm : public OpBase {
 public:
-  BatchNorm(Model* _model, const Tensor& _input, const Tensor& _scale,
+  BatchNorm(std::shared_ptr<Model> _model, const Tensor& _input, const Tensor& _scale,
             const Tensor& _bias, const Tensor& _mean, const Tensor& _var);
   ~BatchNorm(void);
   bool get_int_parameter(PMParameter para, int*);
@@ -831,7 +834,7 @@ public:
 
 class Cast : public OpBase {
 public:
-  Cast(Model* _model, const Tensor& _input, DataType _datatype);
+  Cast(std::shared_ptr<Model> _model, const Tensor& _input, DataType _datatype);
   ~Cast(void);
   bool get_int_parameter(PMParameter para, int*);
   void forward(bool block);
@@ -842,7 +845,7 @@ public:
 
 class Concat : public OpBase {
 public:
-  Concat(Model* _model, int _axis, int _n, Tensor* _inputs, bool* _needCopy);
+  Concat(std::shared_ptr<Model> _model, int _axis, int _n, Tensor* _inputs, bool* _needCopy);
   ~Concat(void);
   bool get_int_parameter(PMParameter para, int*);
   void forward(bool block);
@@ -856,7 +859,7 @@ public:
 
 class Element : public OpBase {
 public:
-  Element(Model* _model, OpType _type, const Tensor& _t1, const Tensor& _t2);
+  Element(std::shared_ptr<Model> _model, OpType _type, const Tensor& _t1, const Tensor& _t2);
   ~Element(void);
   bool use_kernel(void) const;
   bool get_int_parameter(PMParameter para, int*);
@@ -873,7 +876,7 @@ public:
 
 class ElementWiseUnary : public OpBase {
 public:
-  ElementWiseUnary(Model* _model, const Tensor& _input, OpType _type);
+  ElementWiseUnary(std::shared_ptr<Model> _model, const Tensor& _input, OpType _type);
   ~ElementWiseUnary(void);
   bool use_kernel(void) const;
   bool get_int_parameter(PMParameter para, int*);
@@ -885,7 +888,7 @@ public:
 
 class Enlarge : public OpBase {
 public:
-  Enlarge(Model* _model, Tensor _w1, Tensor _w2);
+  Enlarge(std::shared_ptr<Model> _model, Tensor _w1, Tensor _w2);
   ~Enlarge(void);
   bool get_int_parameter(PMParameter para, int*);
   void forward(bool block);
@@ -896,7 +899,7 @@ public:
 
 class FuseConvBatchNorm : public OpBase {
 public:
-  FuseConvBatchNorm(Model* _model, const Tensor& _conv_w, const Tensor& _scale,
+  FuseConvBatchNorm(std::shared_ptr<Model> _model, const Tensor& _conv_w, const Tensor& _scale,
                     const Tensor& _bias, const Tensor& _mean, const Tensor& _var);
   ~FuseConvBatchNorm(void);
   bool get_int_parameter(PMParameter para, int*);
@@ -908,7 +911,7 @@ public:
 
 class FuseConvBatchNormAlphaVar : public OpBase {
 public:
-  FuseConvBatchNormAlphaVar(Model* _model, const Tensor& _conv_w, const Tensor& _scale, const Tensor& _var);
+  FuseConvBatchNormAlphaVar(std::shared_ptr<Model> _model, const Tensor& _conv_w, const Tensor& _scale, const Tensor& _var);
   ~FuseConvBatchNormAlphaVar(void);
   bool get_int_parameter(PMParameter para, int*);
   void forward(bool block);
@@ -919,7 +922,7 @@ public:
 
 class FuseConvBatchNormBias : public OpBase {
 public:
-  FuseConvBatchNormBias(Model* _model, const Tensor& _scale,
+  FuseConvBatchNormBias(std::shared_ptr<Model> _model, const Tensor& _scale,
                     const Tensor& _bias, const Tensor& _mean, const Tensor& _var);
   ~FuseConvBatchNormBias(void);
   bool get_int_parameter(PMParameter para, int*);
@@ -931,7 +934,7 @@ public:
 
 class BroadcastAdd : public OpBase {
 public:
-  BroadcastAdd(Model* _model, const Tensor& _data, const Tensor& _bias);
+  BroadcastAdd(std::shared_ptr<Model> _model, const Tensor& _data, const Tensor& _bias);
   ~BroadcastAdd(void);
   bool get_int_parameter(PMParameter para, int*);
   void forward(bool block);
@@ -942,7 +945,7 @@ public:
 
 class MergeGConv : public OpBase {
 public:
-  MergeGConv(Model* _model, const Tensor& _weight, int count);
+  MergeGConv(std::shared_ptr<Model> _model, const Tensor& _weight, int count);
   ~MergeGConv(void);
   bool get_int_parameter(PMParameter para, int*);
   void forward(bool block);
@@ -955,7 +958,7 @@ public:
 
 class NoOp : public OpBase {
 public:
-  NoOp(Model* _model, Tensor _input, OpType _type);
+  NoOp(std::shared_ptr<Model> _model, Tensor _input, OpType _type);
   ~NoOp(void);
   bool get_int_parameter(PMParameter para, int*);
   void forward(bool block);
@@ -966,7 +969,7 @@ public:
 
 class Pad : public OpBase {
 public:
-  Pad(Model* _model, const Tensor& _input,
+  Pad(std::shared_ptr<Model> _model, const Tensor& _input,
       const std::vector<int>& _pad_before,
       const std::vector<int>& _pad_after,
       float _pad_value);
@@ -983,7 +986,7 @@ public:
 
 class Reduce : public OpBase {
 public:
-  Reduce(Model* _model, const Tensor& _input, OpType _type,
+  Reduce(std::shared_ptr<Model> _model, const Tensor& _input, OpType _type,
          const std::vector<int>& _axes, bool _keepdims);
   ~Reduce(void);
   bool get_int_parameter(PMParameter para, int*);
@@ -998,7 +1001,7 @@ public:
 
 class Reshape : public OpBase {
 public:
-  Reshape(Model* _model, Tensor _input, const std::vector<int>& shape);
+  Reshape(std::shared_ptr<Model> _model, Tensor _input, const std::vector<int>& shape);
   ~Reshape(void);
   bool get_int_parameter(PMParameter para, int*);
   void forward(bool block);
@@ -1009,7 +1012,7 @@ public:
 
 class Resize : public OpBase {
 public:
-  Resize(Model* _model, const Tensor& _input, const std::vector<int>& _shape);
+  Resize(std::shared_ptr<Model> _model, const Tensor& _input, const std::vector<int>& _shape);
   ~Resize(void);
   bool get_int_parameter(PMParameter para, int*);
   void forward(bool block);
@@ -1022,7 +1025,7 @@ public:
 
 class Shape : public OpBase {
 public:
-  Shape(Model* _model, const Tensor& _input, OpType _type);
+  Shape(std::shared_ptr<Model> _model, const Tensor& _input, OpType _type);
   ~Shape(void);
   bool get_int_parameter(PMParameter para, int*);
   void forward(bool block);
@@ -1033,7 +1036,7 @@ public:
 
 class Slice : public OpBase {
 public:
-  Slice(Model* _model, const Tensor& _input,
+  Slice(std::shared_ptr<Model> _model, const Tensor& _input,
         const std::vector<int>& _start,
         const std::vector<int>& _end,
         const std::vector<int>& _axes,
@@ -1050,7 +1053,7 @@ public:
 
 class Split : public OpBase {
 public:
-  Split(Model* _model, const Tensor& _input, int axis, const std::vector<int>& _sizes);
+  Split(std::shared_ptr<Model> _model, const Tensor& _input, int axis, const std::vector<int>& _sizes);
   ~Split(void);
   bool get_int_parameter(PMParameter para, int*);
   void forward(bool block);
@@ -1064,7 +1067,7 @@ public:
 
 class Squeeze : public OpBase {
 public:
-  Squeeze(Model* _model, const Tensor& input, const std::vector<int>& axes);
+  Squeeze(std::shared_ptr<Model> _model, const Tensor& input, const std::vector<int>& axes);
   ~Squeeze(void);
   bool get_int_parameter(PMParameter para, int*);
   void forward(bool block);
@@ -1077,7 +1080,7 @@ public:
 
 class TopK : public OpBase {
 public:
-  TopK(Model* _model, const Tensor& _input,
+  TopK(std::shared_ptr<Model> _model, const Tensor& _input,
        int _axis, int _numk,
        bool _largest, bool _sorted);
   ~TopK(void);
@@ -1093,7 +1096,7 @@ public:
 
 class Transpose : public OpBase {
 public:
-  Transpose(Model* _model, Tensor _input,
+  Transpose(std::shared_ptr<Model> _model, Tensor _input,
             const std::vector<int>& perm,
             bool _shuffle);
   ~Transpose(void);
@@ -1109,7 +1112,7 @@ public:
 
 class Unsqueeze : public OpBase {
 public:
-  Unsqueeze(Model* _model, const Tensor& input, const std::vector<int>& axes);
+  Unsqueeze(std::shared_ptr<Model> _model, const Tensor& input, const std::vector<int>& axes);
   ~Unsqueeze(void);
   bool get_int_parameter(PMParameter para, int*);
   void forward(bool block);
@@ -1122,7 +1125,7 @@ public:
 
 class Where : public OpBase {
 public:
-  Where(Model* _model, const Tensor& _input, const Tensor& _x, const Tensor& _y);
+  Where(std::shared_ptr<Model> _model, const Tensor& _input, const Tensor& _x, const Tensor& _y);
   ~Where(void);
   bool get_int_parameter(PMParameter para, int*);
   void forward(bool block);
@@ -1339,7 +1342,7 @@ struct WhereKey {
   int keys[KEY_LENGTH];
 };
 
-class Model {
+class Model : std::enable_shared_from_this<Model>{
 public:
   Model();
   Op get_or_create_activation(Tensor _input, OpType _type,
@@ -1415,32 +1418,32 @@ public:
   // Special API for creating weight and input operator
   Op create_input(Tensor _input, OpType _type);
   Op create_weight(Tensor _weight, OpType _type);
-  void measure_conv2d_cost(Conv2D*);
-  void measure_matmul_cost(Matmul*);
-  void measure_mul_cost(Mul*);
-  void measure_pad_cost(Pad*);
-  void measure_pool2d_cost(Pool2D*);
-  void measure_topk_cost(TopK*);
-  void measure_transpose_cost(Transpose*);
-  void measure_reduce_cost(Reduce*);
-  void measure_reshape_cost(Reshape*);
-  void measure_resize_cost(Resize*);
-  void measure_activation_cost(Activation*);
-  void measure_batchnorm_cost(BatchNorm*);
-  void measure_cast_cost(Cast*);
-  void measure_concat_cost(Concat*);
-  void measure_shape_cost(Shape*);
-  void measure_slice_cost(Slice*);
-  void measure_split_cost(Split*);
-  void measure_element_cost(Element*);
-  void measure_elementwise_unary_cost(ElementWiseUnary*);
-  void measure_enlarge_cost(Enlarge*);
-  void measure_squeeze_cost(Squeeze*);
-  void measure_unsqueeze_cost(Unsqueeze*);
-  void measure_where_cost(Where*);
+  void measure_conv2d_cost(std::shared_ptr<Conv2D>);
+  void measure_matmul_cost(std::shared_ptr<Matmul>);
+  void measure_mul_cost(std::shared_ptr<Mul>);
+  void measure_pad_cost(std::shared_ptr<Pad>);
+  void measure_pool2d_cost(std::shared_ptr<Pool2D>);
+  void measure_topk_cost(std::shared_ptr<TopK>);
+  void measure_transpose_cost(std::shared_ptr<Transpose>);
+  void measure_reduce_cost(std::shared_ptr<Reduce>);
+  void measure_reshape_cost(std::shared_ptr<Reshape>);
+  void measure_resize_cost(std::shared_ptr<Resize>);
+  void measure_activation_cost(std::shared_ptr<Activation>);
+  void measure_batchnorm_cost(std::shared_ptr<BatchNorm>);
+  void measure_cast_cost(std::shared_ptr<Cast>);
+  void measure_concat_cost(std::shared_ptr<Concat>);
+  void measure_shape_cost(std::shared_ptr<Shape>);
+  void measure_slice_cost(std::shared_ptr<Slice>);
+  void measure_split_cost(std::shared_ptr<Split>);
+  void measure_element_cost(std::shared_ptr<Element>);
+  void measure_elementwise_unary_cost(std::shared_ptr<ElementWiseUnary>);
+  void measure_enlarge_cost(std::shared_ptr<Enlarge>);
+  void measure_squeeze_cost(std::shared_ptr<Squeeze>);
+  void measure_unsqueeze_cost(std::shared_ptr<Unsqueeze>);
+  void measure_where_cost(std::shared_ptr<Where>);
   void* allocate_memory(size_t size, const DATATYPE* initial_data= NULL);
   bool copy_memory(DATATYPE* dst, const DATATYPE* src, size_t size);
-  float measure_oplist_runtime(const std::vector<OpBase*>& list);
+  float measure_oplist_runtime(const std::vector<std::shared_ptr<OpBase>>& list);
   bool broadcastable(const Tensor& t1, const Tensor& t2);
 public:
   bool isTraining;
@@ -1469,36 +1472,36 @@ public:
   dnnl::engine eng;
   dnnl::stream strm;
 #endif
-  std::map<ActivationKey, Activation*, KeyCompare<ActivationKey> > activation;
-  std::map<BatchNormKey, BatchNorm*, KeyCompare<BatchNormKey> > batchnorm;
-  std::map<CastKey, Cast*, KeyCompare<CastKey> > cast;
-  std::map<ConcatKey, Concat*, KeyCompare<ConcatKey> > concat;
-  std::map<ConstantKey, Constant*, KeyCompare<ConstantKey> > constant;
-  std::map<Conv2DKey, Conv2D*, KeyCompare<Conv2DKey> > conv2d;
-  std::map<ElementKey, Element*, KeyCompare<ElementKey> > element;
-  std::map<ElementWiseUnaryKey, ElementWiseUnary*, KeyCompare<ElementWiseUnaryKey> > element_unary;
-  std::map<EnlargeKey, Enlarge*, KeyCompare<EnlargeKey> > enlarge;
-  std::map<FuseConvBatchNormKey, FuseConvBatchNorm*, KeyCompare<FuseConvBatchNormKey> > fuse_conv_batchnorm;
-  std::map<FuseConvBatchNormAlphaVarKey, FuseConvBatchNormAlphaVar*, KeyCompare<FuseConvBatchNormAlphaVarKey> > fuse_conv_batchnorm_alpha_var;
-  std::map<FuseConvBatchNormBiasKey, FuseConvBatchNormBias*, KeyCompare<FuseConvBatchNormBiasKey> > fuse_conv_batchnorm_bias;
-  std::map<BroadcastAddKey, BroadcastAdd*, KeyCompare<BroadcastAddKey> > broadcast_add;
-  std::map<MatmulKey, Matmul*, KeyCompare<MatmulKey> > matmul;
-  std::map<MergeGConvKey, MergeGConv*, KeyCompare<MergeGConvKey> > merge_gconv;
-  std::map<MulKey, Mul*, KeyCompare<MulKey> > mul;
-  std::map<NoopKey, NoOp*, KeyCompare<NoopKey> > noop;
-  std::map<PadKey, Pad*, KeyCompare<PadKey> > pad;
-  std::map<Pool2DKey, Pool2D*, KeyCompare<Pool2DKey> > pool2d;
-  std::map<ReduceKey, Reduce*, KeyCompare<ReduceKey> > reduce;
-  std::map<ReshapeKey, Reshape*, KeyCompare<ReshapeKey> > reshape;
-  std::map<ResizeKey, Resize*, KeyCompare<ResizeKey> > resize;
-  std::map<ShapeKey, Shape*, KeyCompare<ShapeKey> > shape;
-  std::map<SliceKey, Slice*, KeyCompare<SliceKey> > slice;
-  std::map<SplitKey, Split*, KeyCompare<SplitKey> > split;
-  std::map<SqueezeKey, Squeeze*, KeyCompare<SqueezeKey> > squeeze;
-  std::map<TopKKey, TopK*, KeyCompare<TopKKey> > topk;
-  std::map<TransposeKey, Transpose*, KeyCompare<TransposeKey> > transpose;
-  std::map<UnsqueezeKey, Unsqueeze*, KeyCompare<UnsqueezeKey> > unsqueeze;
-  std::map<WhereKey, Where*, KeyCompare<WhereKey> > where;
+  std::map<ActivationKey, std::shared_ptr<Activation>, KeyCompare<ActivationKey> > activation;
+  std::map<BatchNormKey, std::shared_ptr<BatchNorm>, KeyCompare<BatchNormKey> > batchnorm;
+  std::map<CastKey, std::shared_ptr<Cast>, KeyCompare<CastKey> > cast;
+  std::map<ConcatKey, std::shared_ptr<Concat>, KeyCompare<ConcatKey> > concat;
+  std::map<ConstantKey, std::shared_ptr<Constant>, KeyCompare<ConstantKey> > constant;
+  std::map<Conv2DKey, std::shared_ptr<Conv2D>, KeyCompare<Conv2DKey> > conv2d;
+  std::map<ElementKey, std::shared_ptr<Element>, KeyCompare<ElementKey> > element;
+  std::map<ElementWiseUnaryKey, std::shared_ptr<ElementWiseUnary>, KeyCompare<ElementWiseUnaryKey> > element_unary;
+  std::map<EnlargeKey, std::shared_ptr<Enlarge>, KeyCompare<EnlargeKey> > enlarge;
+  std::map<FuseConvBatchNormKey, std::shared_ptr<FuseConvBatchNorm>, KeyCompare<FuseConvBatchNormKey> > fuse_conv_batchnorm;
+  std::map<FuseConvBatchNormAlphaVarKey, std::shared_ptr<FuseConvBatchNormAlphaVar>, KeyCompare<FuseConvBatchNormAlphaVarKey> > fuse_conv_batchnorm_alpha_var;
+  std::map<FuseConvBatchNormBiasKey, std::shared_ptr<FuseConvBatchNormBias>, KeyCompare<FuseConvBatchNormBiasKey> > fuse_conv_batchnorm_bias;
+  std::map<BroadcastAddKey, std::shared_ptr<BroadcastAdd>, KeyCompare<BroadcastAddKey> > broadcast_add;
+  std::map<MatmulKey, std::shared_ptr<Matmul>, KeyCompare<MatmulKey> > matmul;
+  std::map<MergeGConvKey, std::shared_ptr<MergeGConv>, KeyCompare<MergeGConvKey> > merge_gconv;
+  std::map<MulKey, std::shared_ptr<Mul>, KeyCompare<MulKey> > mul;
+  std::map<NoopKey, std::shared_ptr<NoOp>, KeyCompare<NoopKey> > noop;
+  std::map<PadKey, std::shared_ptr<Pad>, KeyCompare<PadKey> > pad;
+  std::map<Pool2DKey, std::shared_ptr<Pool2D>, KeyCompare<Pool2DKey> > pool2d;
+  std::map<ReduceKey, std::shared_ptr<Reduce>, KeyCompare<ReduceKey> > reduce;
+  std::map<ReshapeKey, std::shared_ptr<Reshape>, KeyCompare<ReshapeKey> > reshape;
+  std::map<ResizeKey, std::shared_ptr<Resize>, KeyCompare<ResizeKey> > resize;
+  std::map<ShapeKey, std::shared_ptr<Shape>, KeyCompare<ShapeKey> > shape;
+  std::map<SliceKey, std::shared_ptr<Slice>, KeyCompare<SliceKey> > slice;
+  std::map<SplitKey, std::shared_ptr<Split>, KeyCompare<SplitKey> > split;
+  std::map<SqueezeKey, std::shared_ptr<Squeeze>, KeyCompare<SqueezeKey> > squeeze;
+  std::map<TopKKey, std::shared_ptr<TopK>, KeyCompare<TopKKey> > topk;
+  std::map<TransposeKey, std::shared_ptr<Transpose>, KeyCompare<TransposeKey> > transpose;
+  std::map<UnsqueezeKey, std::shared_ptr<Unsqueeze>, KeyCompare<UnsqueezeKey> > unsqueeze;
+  std::map<WhereKey, std::shared_ptr<Where>, KeyCompare<WhereKey> > where;
   DATATYPE *inputPtr, *biasPtr, *outputPtr, *filterPtr;
   // variables for batch norm
   DATATYPE *scalePtr, *runningMean, *runningVar, *saveMean, *saveVar;

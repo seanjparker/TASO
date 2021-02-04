@@ -180,7 +180,7 @@ void Element::forward(bool block)
     checkCUDA(cudaDeviceSynchronize());
 }
 
-void Model::measure_element_cost(Element* ele)
+void Model::measure_element_cost(std::shared_ptr<Element> ele)
 {
   // cudnnOpTensor only supports OP_EW_ADD, OP_EW_MUL, OP_EW_MAX, OP_EW_MIN
   if (ele->use_kernel()) {

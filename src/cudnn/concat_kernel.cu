@@ -80,7 +80,7 @@ void Concat::forward(bool block)
   //}
 }
 
-void Model::measure_concat_cost(Concat* concat)
+void Model::measure_concat_cost(std::shared_ptr<Concat> concat)
 {
   checkCUDA(cudaDeviceSynchronize());
   checkCUDA(cudaEventRecord(startEvent));

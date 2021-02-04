@@ -22,7 +22,7 @@ TensorHandle Graph::resize(const TensorHandle _input,
   Op op = model->get_or_create_resize(*_input, _shape);
   assert(op != Op::INVALID_OP);
   add_edge(_input->op, op, _input->idx, 0);
-  TensorHandle t = new Tensor(op.ptr->outputs[0]);
+  TensorHandle t = std::shared_ptr<Tensor>(new Tensor(op.ptr->outputs[0]));
   t->op = op;
   return t;
 }
@@ -33,11 +33,11 @@ Op Model::get_or_create_resize(const Tensor& _input,
   if ((int)_shape.size() != _input.numDim)
     return Op::INVALID_OP;
   ResizeKey key(_input, _shape);
-  Resize* resizeOp;
+  std::shared_ptr<Resize> resizeOp;
   if (resize.find(key) != resize.end()) {
     resizeOp = resize[key];
   } else {
-    resizeOp = new Resize(this, _input, _shape);
+    resizeOp = std::shared_ptr<Resize>(new Resize(shared_from_this(), _input, _shape));
     measure_resize_cost(resizeOp);
     resize[key] = resizeOp;
   }
@@ -47,7 +47,7 @@ Op Model::get_or_create_resize(const Tensor& _input,
   return ret;
 }
 
-Resize::Resize(Model* _model, const Tensor& _input,
+Resize::Resize(std::shared_ptr<Model> _model, const Tensor& _input,
                const std::vector<int>& _shape)
 : OpBase(_input, _model, OP_RESIZE), shape(_shape)
 {

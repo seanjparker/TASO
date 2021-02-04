@@ -114,7 +114,7 @@ TensorHandle Graph::conv2d(const TensorHandle _input,
   assert(op != Op::INVALID_OP);
   add_edge(_input->op, op, _input->idx, 0);
   add_edge(_weight->op, op, _weight->idx, 1);
-  TensorHandle t = new Tensor(op.ptr->outputs[0]);
+  TensorHandle t = std::shared_ptr<Tensor>(new Tensor(op.ptr->outputs[0]));
   t->op = op;
   return t;
 }
@@ -129,12 +129,12 @@ Op Model::get_or_create_conv2d(Tensor _input, Tensor _weight,
   // key is (inputN, inputC, inputH, inputW, outputC, kernelH, kernelW,
   //         strideH, strideW, padding, activation)
   Conv2DKey key(_input, _weight, _strideH, _strideW, _padding, _activation);
-  Conv2D* convOp;
+  std::shared_ptr<Conv2D> convOp;
   if (conv2d.find(key) != conv2d.end()) {
     convOp = conv2d[key];
   } else {
-    convOp = new Conv2D(this, _input, _weight, _strideH, _strideW,
-                        _padding, _activation);
+    convOp = std::shared_ptr<Conv2D>(new Conv2D(shared_from_this(), _input, _weight, _strideH, _strideW,
+                        _padding, _activation));
     measure_conv2d_cost(convOp);
     conv2d[key] = convOp;
   }
@@ -144,7 +144,7 @@ Op Model::get_or_create_conv2d(Tensor _input, Tensor _weight,
   return ret;
 }
 
-Conv2D::Conv2D(Model* _model, Tensor _input, Tensor _weight,
+Conv2D::Conv2D(std::shared_ptr<Model> _model, Tensor _input, Tensor _weight,
                int _strideH, int _strideW,
                PaddingMode _padding,
                ActiMode _activation)

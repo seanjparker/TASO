@@ -61,7 +61,7 @@ void Enlarge::forward(bool block)
     checkCUDA(cudaDeviceSynchronize());
 }
 
-void Model::measure_enlarge_cost(Enlarge* enl)
+void Model::measure_enlarge_cost(std::shared_ptr<Enlarge> enl)
 {
   enl->runtime = 0.0f;
 }

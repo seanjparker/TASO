@@ -39,7 +39,7 @@ void Squeeze::forward(bool block)
     checkCUDA(cudaDeviceSynchronize());
 }
 
-void Model::measure_squeeze_cost(Squeeze* sqz)
+void Model::measure_squeeze_cost(std::shared_ptr<Squeeze> sqz)
 {
   checkCUDA(cudaDeviceSynchronize());
   checkCUDA(cudaEventRecord(startEvent));

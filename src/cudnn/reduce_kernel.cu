@@ -34,7 +34,7 @@ void Reduce::forward(bool block)
     checkCUDA(cudaDeviceSynchronize());
 }
 
-void Model::measure_reduce_cost(Reduce* reduce)
+void Model::measure_reduce_cost(std::shared_ptr<Reduce> reduce)
 {
   // TODO: use cudnn reduce tensor
   reduce->runtime = 0;

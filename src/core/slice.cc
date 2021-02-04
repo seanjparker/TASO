@@ -24,7 +24,7 @@ TensorHandle Graph::slice(const TensorHandle _input,
 {
   Op op = model->get_or_create_slice(*_input, _start, _end, _axes, _steps);
   add_edge(_input->op, op, _input->idx, 0);
-  TensorHandle t = new Tensor(op.ptr->outputs[0]);
+  TensorHandle t = std::shared_ptr<Tensor>(new Tensor(op.ptr->outputs[0]));
   t->op = op;
   return t;
 }
@@ -42,11 +42,11 @@ Op Model::get_or_create_slice(const Tensor& _input,
   if (_start.size() != _steps.size())
     return Op::INVALID_OP;
   SliceKey key(_input, _start, _end, _axes, _steps);
-  Slice* sliceOp;
+  std::shared_ptr<Slice> sliceOp;
   if (slice.find(key) != slice.end()) {
     sliceOp = slice[key];
   } else {
-    sliceOp = new Slice(this, _input, _start, _end, _axes, _steps);
+    sliceOp = std::shared_ptr<Slice>(new Slice(shared_from_this(), _input, _start, _end, _axes, _steps));
     measure_slice_cost(sliceOp);
     slice[key] = sliceOp;
   }
@@ -56,7 +56,7 @@ Op Model::get_or_create_slice(const Tensor& _input,
   return ret;
 }
 
-Slice::Slice(Model* _model, const Tensor& _input,
+Slice::Slice(std::shared_ptr<Model> _model, const Tensor& _input,
              const std::vector<int>& _start,
              const std::vector<int>& _end,
              const std::vector<int>& _axes,

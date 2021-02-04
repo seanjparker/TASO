@@ -33,7 +33,7 @@ void Pad::forward(bool block)
     checkCUDA(cudaDeviceSynchronize());
 }
 
-void Model::measure_pad_cost(Pad* pad)
+void Model::measure_pad_cost(std::shared_ptr<Pad> pad)
 {
   pad->runtime = 0;
 }

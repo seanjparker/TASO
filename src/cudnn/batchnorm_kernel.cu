@@ -100,7 +100,7 @@ void BatchNorm::forward(bool block)
     checkCUDA(cudaDeviceSynchronize());
 }
 
-void Model::measure_batchnorm_cost(BatchNorm* bn)
+void Model::measure_batchnorm_cost(std::shared_ptr<BatchNorm> bn)
 {
   const float alpha = 1.0f;
   const float beta = 0.0f;

@@ -36,11 +36,11 @@ Op Model::get_or_create_fuse_conv_batchnorm_alpha_var(const Tensor& _conv_w,
                                             const Tensor& _var)
 {
   FuseConvBatchNormAlphaVarKey key(_conv_w);
-  FuseConvBatchNormAlphaVar* fuseOp;
+  std::shared_ptr<FuseConvBatchNormAlphaVar> fuseOp;
   if (fuse_conv_batchnorm_alpha_var.find(key) != fuse_conv_batchnorm_alpha_var.end()) {
     fuseOp = fuse_conv_batchnorm_alpha_var[key];
   } else {
-    fuseOp = new FuseConvBatchNormAlphaVar(this, _conv_w, _scale, _var);
+    fuseOp = std::shared_ptr<FuseConvBatchNormAlphaVar>(new FuseConvBatchNormAlphaVar(shared_from_this(), _conv_w, _scale, _var));
     //Assign a zero cost since it can be preprocessed
     // measure_fuse_conv_batchnorm_cost(fuseOp);
     fuseOp->runtime = 0.0f;
@@ -52,7 +52,7 @@ Op Model::get_or_create_fuse_conv_batchnorm_alpha_var(const Tensor& _conv_w,
   return ret;
 }
 
-FuseConvBatchNormAlphaVar::FuseConvBatchNormAlphaVar(Model* _model,
+FuseConvBatchNormAlphaVar::FuseConvBatchNormAlphaVar(std::shared_ptr<Model> _model,
                                      const Tensor& _conv_w,
                                      const Tensor& _scale,
                                      const Tensor& _var)

@@ -40,7 +40,7 @@ TensorHandle Graph::matmul(const TensorHandle _input,
   assert(op != Op::INVALID_OP);
   add_edge(_input->op, op, _input->idx, 0);
   add_edge(_weight->op, op, _weight->idx, 1);
-  TensorHandle t = new Tensor(op.ptr->outputs[0]);
+  TensorHandle t = std::shared_ptr<Tensor>(new Tensor(op.ptr->outputs[0]));
   t->op = op;
   return t;
 }
@@ -57,11 +57,11 @@ Op Model::get_or_create_matmul(Tensor _input, Tensor _weight,
     return Op::INVALID_OP;
   // key is (inputX, inputN, inputC, outputC, acti)
   MatmulKey key(_input, _weight, _acti);
-  Matmul* matmulOp;
+  std::shared_ptr<Matmul> matmulOp;
   if (matmul.find(key) != matmul.end()) {
     matmulOp = matmul[key];
   } else {
-    matmulOp = new Matmul(this, _input, _weight, _acti);
+    matmulOp = std::shared_ptr<Matmul>(new Matmul(shared_from_this(), _input, _weight, _acti));
     measure_matmul_cost(matmulOp);
     matmul[key] = matmulOp;
   }
@@ -71,7 +71,7 @@ Op Model::get_or_create_matmul(Tensor _input, Tensor _weight,
   return ret;
 }
 
-Matmul::Matmul(Model* _model, Tensor _input, Tensor _weight, ActiMode _activation)
+Matmul::Matmul(std::shared_ptr<Model> _model, Tensor _input, Tensor _weight, ActiMode _activation)
 : OpBase(_input, _weight, _model, OP_MATMUL), activation(_activation)
 {
   int numDim = _input.numDim;

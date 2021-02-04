@@ -17,7 +17,7 @@
 #define checkCUDNN(status) do {                                        \
     std::stringstream _error;                                          \
     if (status != CUDNN_STATUS_SUCCESS) {                              \
-      _error << "CUDNN failure: " << cudnnGetErrorString(status);      \
+      _error << "CUDNN failure (MAX_TENSOR_SIZE) " << MAX_TENSOR_SIZE << ": " << cudnnGetErrorString(status);      \
       FatalError(_error.str());                                        \
     }                                                                  \
 } while(0)
@@ -25,7 +25,7 @@
 #define checkCUDA(status) do {                                         \
     std::stringstream _error;                                          \
     if (status != 0) {                                                 \
-      _error << "Cuda failure: " << status;                            \
+      _error << "Cuda failure: (MAX_TENSOR_SIZE) " << MAX_TENSOR_SIZE << ":  " << status;                            \
       FatalError(_error.str());                                        \
     }                                                                  \
 } while(0)

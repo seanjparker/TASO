@@ -54,7 +54,7 @@ Model::Model()
   checkCUDA(cudaEventCreate(&endEvent));
 }
 
-float Model::measure_oplist_runtime(const std::vector<OpBase*>& opBaseList)
+float Model::measure_oplist_runtime(const std::vector<std::shared_ptr<OpBase>>& opBaseList)
 {
   const int num_runs = 100;
   // warmup

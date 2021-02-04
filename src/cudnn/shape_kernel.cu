@@ -34,7 +34,7 @@ void Shape::forward(bool block)
     checkCUDA(cudaDeviceSynchronize());
 }
 
-void Model::measure_shape_cost(Shape* shape)
+void Model::measure_shape_cost(std::shared_ptr<Shape> shape)
 {
   // TODO: use cudnn reduce tensor
   shape->runtime = 0;

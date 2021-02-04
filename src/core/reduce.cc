@@ -77,7 +77,7 @@ TensorHandle Graph::reduce(const TensorHandle _input,
   Op op = model->get_or_create_reduce(*_input, _type, axes, keepdims);
   assert(op != Op::INVALID_OP);
   add_edge(_input->op, op, _input->idx, 0);
-  TensorHandle t = new Tensor(op.ptr->outputs[0]);
+  TensorHandle t = std::shared_ptr<Tensor>(new Tensor(op.ptr->outputs[0]));
   t->op = op;
   return t;
 }
@@ -88,11 +88,11 @@ Op Model::get_or_create_reduce(const Tensor& _input,
                                bool keepdims)
 {
   ReduceKey key(_input, _type, axes, keepdims);
-  Reduce* reduceOp;
+  std::shared_ptr<Reduce> reduceOp;
   if (reduce.find(key) != reduce.end()) {
     reduceOp = reduce[key];
   } else {
-    reduceOp = new Reduce(this, _input, _type, axes, keepdims);
+    reduceOp = std::shared_ptr<Reduce>(new Reduce(shared_from_this(), _input, _type, axes, keepdims));
     measure_reduce_cost(reduceOp);
     reduce[key] = reduceOp;
   }
@@ -102,7 +102,7 @@ Op Model::get_or_create_reduce(const Tensor& _input,
   return ret;
 }
 
-Reduce::Reduce(Model* _model, const Tensor& _input, OpType _type,
+Reduce::Reduce(std::shared_ptr<Model> _model, const Tensor& _input, OpType _type,
                const std::vector<int>& _axes, bool _keepdims)
 : OpBase(_input, _model, _type), keepdims(_keepdims), axes(_axes)
 {

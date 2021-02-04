@@ -21,6 +21,7 @@ from cpython cimport array
 import ctypes
 import array
 import numpy as np
+from libc.stdint cimport uintptr_t
 
 #helper function
 def get_padding_mode(padding):
@@ -163,11 +164,19 @@ cdef class PyGraph:
         else:
             ptr = ctypes.cast(graph, ctypes.c_void_p).value
             self.p_graph = <Graph*>(ptr)
+
+    def get_ptr_addr(self):
+        cdef uintptr_t ptr
+        return <uintptr_t>self.p_graph
+
     def print_measurements(self):
         self.p_graph.print_measurements()
 
     def run_time(self):
         return self.p_graph.run()
+
+    def run_time_memorysafe(self):
+        return self.p_graph.run_memorysafe()
 
     def cost(self):
         return self.p_graph.total_cost()

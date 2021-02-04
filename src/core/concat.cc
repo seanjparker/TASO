@@ -30,7 +30,7 @@ TensorHandle Graph::concat(int axis, int n, const TensorHandle* _inputs)
   assert (op != Op::INVALID_OP);
   for (int i = 0; i < n; i++) 
     add_edge(_inputs[i]->op, op, _inputs[i]->idx, i);
-  TensorHandle t = new Tensor(op.ptr->outputs[0]);
+  TensorHandle t = std::shared_ptr<Tensor>(new Tensor(op.ptr->outputs[0]));
   t->op = op;
   return t;
 }
@@ -53,11 +53,11 @@ Op Model::get_or_create_concat(int axis, int n, Tensor* _inputs, bool* _needCopy
       }
   }
   ConcatKey key(axis, n, _inputs, _needCopy);
-  Concat* concatOp;
+  std::shared_ptr<Concat> concatOp;
   if (concat.find(key) != concat.end()) {
     concatOp = concat[key];
   } else {
-    concatOp = new Concat(this, axis, n, _inputs, _needCopy);
+    concatOp = std::shared_ptr<Concat>(new Concat(shared_from_this(), axis, n, _inputs, _needCopy));
     measure_concat_cost(concatOp);
     concat[key] = concatOp;
   }
@@ -67,7 +67,7 @@ Op Model::get_or_create_concat(int axis, int n, Tensor* _inputs, bool* _needCopy
   return ret;
 }
 
-Concat::Concat(Model* _model, int _axis, int n, Tensor* _inputs, bool* _needCopy)
+Concat::Concat(std::shared_ptr<Model> _model, int _axis, int n, Tensor* _inputs, bool* _needCopy)
   : OpBase(n, _inputs, _model, OP_CONCAT), axis(_axis)
 {
   //for (int i = 0; i < n; i++) {
