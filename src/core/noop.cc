@@ -16,8 +16,10 @@
 #include "taso/ops.h"
 using namespace taso;
 
-TensorHandle Graph::input_wrapper(const TensorHandle _input)
+TensorHandle Graph::input_wrapper(const Tensor* _input)
 {
+  printf("model is next\n");
+  // printf("%p", model);
   // Always create new operator for input
   Op op = model->create_input(*_input, OP_INPUT);
   add_edge(_input->op, op, _input->idx, 0);
@@ -26,7 +28,7 @@ TensorHandle Graph::input_wrapper(const TensorHandle _input)
   return t;
 }
 
-TensorHandle Graph::weight_wrapper(const TensorHandle _weight)
+TensorHandle Graph::weight_wrapper(const Tensor* _weight)
 {
   // Always create new operator for weight
   Op op = model->create_weight(*_weight, OP_WEIGHT);

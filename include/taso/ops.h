@@ -670,8 +670,8 @@ private:
 #endif
   void export_op(ofstream &file_stream, Op &op);
 private:
-  TensorHandle input_wrapper(const TensorHandle _input);
-  TensorHandle weight_wrapper(const TensorHandle _weight);
+  TensorHandle input_wrapper(const Tensor* _input);
+  TensorHandle weight_wrapper(const Tensor* _weight);
 public:
   std::shared_ptr<Model> model;
   float totalCost;

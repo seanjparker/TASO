@@ -110,6 +110,7 @@ def _get_list_from_initializer(initializer, name):
     return []
 
 def _get_inputs(op, graph, tensors, initializer):
+    print('getting inputs')
     inputs = list()
     for i in op.input:
         input_tensor = None
@@ -693,22 +694,27 @@ def load_onnx(filename):
     Loaded in-memory Graph
     '''
     graph = core.PyGraph()
+    print("here1")
     model = onnx.load(filename)
     tensors = dict()
+    print("here2")
     for t in model.graph.input:
         dims = list()
         for d in t.type.tensor_type.shape.dim:
             dims.append(d.dim_value)
+        print("here2.2")
         weight_data = None
         for weight in model.graph.initializer:
             if (weight.name == t.name):
                 weight_data = numpy_helper.to_array(weight)
+        print("here2.3")
         # We classify an input to be a pure input if we cannot find its weights
         if weight_data is None:
+            print("here2.4")
             tensors[t.name] = graph.new_input(dims=tuple(dims))
         else:
             tensors[t.name] = graph.new_weight(dims=tuple(dims), data=weight_data)
-
+    print("here3")
     # Add initializers not in the inputs
     for weight in model.graph.initializer:
         if weight.name not in tensors:
@@ -716,7 +722,7 @@ def load_onnx(filename):
                 dims = list(weight.dims)
                 weight_data = numpy_helper.to_array(weight)
                 tensors[weight.name] = graph.new_weight(dims=tuple(dims), data=weight_data)
-
+    print("here4")
     # Reorder nodes to satisfy data dependencies
     tensor_owner = dict()
     name_to_op = dict()
@@ -755,11 +761,14 @@ def load_onnx(filename):
     assert len(node_list) == len(model.graph.node), "Internal error when reording ONNX operators"
 
     # Add nodse into TASO graph
+    print("here6")
     cnt = 0
+    print(len(node_list))
     for opname in node_list:
         op = name_to_op[opname]
         #print(cnt, op.op_type, opname)
         cnt += 1
+        print(op.op_type)
         if op.op_type in xf_operators:
             try:
                 outputs = xf_operators[op.op_type](op, graph, tensors, model.graph.initializer)
@@ -775,6 +784,7 @@ def load_onnx(filename):
         else:
             print("Found unsupported ONNX operator: {} (Skipped)".format(op.op_type))
             continue
+    print("here7")
     return graph
 
 input_weight_names = dict()

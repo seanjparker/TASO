@@ -348,9 +348,13 @@ Graph::Graph()
 : totalCost(-1.0f)
 {
   if (model_singleton == NULL) {
+    printf("created new shared model\n");
     model_singleton = std::shared_ptr<Model>(new Model());
   }
+  printf("called graph init\n");
+  printf("%lu\n", model_singleton.use_count());
   model = model_singleton;
+  printf("%lu\n", model_singleton.use_count());
   model->print_cost = false;
   //size_t inputSize = sizeof(DATATYPE) * n * c * h * w;
   //checkCUDA(cudaMalloc(&input.ptr, inputSize));
@@ -364,9 +368,11 @@ void Graph::print_measurements(void)
 
 TensorHandle Graph::new_input(int ndim, const int* dims)
 {
-  TensorHandle t = std::shared_ptr<Tensor>(new Tensor(ndim, dims, GUID_INPUT));
-  t = input_wrapper(t);
-  return t;
+  Tensor* t = new Tensor(ndim, dims, GUID_INPUT);
+  printf("here_1\n");
+  TensorHandle t_new = input_wrapper(t);
+  printf("here_1.1\n");
+  return t_new;
 }
 
 TensorHandle Graph::new_weight(int ndim, const int* dims, const DATATYPE* weight_initial)
@@ -376,21 +382,21 @@ TensorHandle Graph::new_weight(int ndim, const int* dims, const DATATYPE* weight
   for (int i = 0; i < ndim; i++)
     total_size *= dims[i];
   weight_ptr = (DATATYPE*) model->allocate_memory(total_size, weight_initial);
-  TensorHandle t = std::shared_ptr<Tensor>(new Tensor(ndim, dims, GUID_WEIGHT, weight_ptr));
-  t = weight_wrapper(t);
-  return t;
+  Tensor* t = new Tensor(ndim, dims, GUID_WEIGHT, weight_ptr);
+  TensorHandle t_new = weight_wrapper(t);
+  return t_new;
 }
 
 TensorHandle Graph::new_weight(const Tensor& weight)
 {
-  TensorHandle t = std::shared_ptr<Tensor>(new Tensor(weight));
+  Tensor* t = new Tensor(weight);
   t->op.guid = GUID_WEIGHT;
   t->op.ptr = NULL;
   t->idx = 0;
   t->data_ptr = (DATATYPE*) model->allocate_memory(
       weight.volume() * sizeof(DATATYPE), (DATATYPE*) weight.data_ptr);
-  t = weight_wrapper(t);
-  return t;
+  TensorHandle t_new = weight_wrapper(t);
+  return t_new;
 }
 
 std::shared_ptr<Graph> Graph::optimize(float alpha, int budget, bool print_subst)

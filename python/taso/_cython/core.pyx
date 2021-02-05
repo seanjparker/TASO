@@ -23,6 +23,9 @@ import array
 import numpy as np
 from libc.stdint cimport uintptr_t
 
+from libcpp.memory cimport shared_ptr, make_shared
+from cython.operator cimport dereference as deref
+
 #helper function
 def get_padding_mode(padding):
     if (padding == "SAME"):
@@ -30,7 +33,7 @@ def get_padding_mode(padding):
     elif (padding == "VALID"):
         return PD_MODE_VALID
     else:
-        assert(False)
+        assert (False)
 
 def get_data_type(datatype):
     if datatype == "FLOAT":
@@ -60,47 +63,7 @@ def get_activation_mode(activation):
     elif (activation == "TANH"):
         return AC_MODE_TANH
     else:
-        assert(False)
-
-cdef class PyModel:
-    cdef Model *p_model # Hold a Model instance
-
-    def __cinit__(self):
-        self.p_model = new Model()
-
-    def __dealloc__(self):
-        del self.p_model
-
-cdef class PyTensor:
-    cdef TensorHandle ctensor # Hold a Tensor instance
-
-    cdef inline _set_tensor(self, tensor):
-        cdef unsigned long long ptr
-        if tensor is None:
-            self.ctensor = <TensorHandle>(NULL)
-        else:
-            ptr = ctypes.cast(tensor, ctypes.c_void_p).value
-            self.ctensor = <TensorHandle>(ptr)
-
-    property tensor:
-        def __get__(self):
-            if self.ctensor == NULL:
-                return None
-            else:
-                return ctypes.cast(<unsigned long long>self.ctensor, ctypes.c_void_p)
-        
-        def __set__(self, value):
-            self._set_tensor(value)
-
-    def __cinit__(self, tensor):
-        self._set_tensor(tensor)
-
-    def dim(self, int idx):
-        if (idx < self.ctensor.numDim):
-            return self.ctensor.dim[idx]
-        else:
-            assert False , "Error: index out of range"
-            return None
+        assert (False)
 
 # Construct operator table
 op_table = dict()
@@ -154,271 +117,325 @@ op_table[OP_RESIZE] = "Resize"
 # op_table[OP_BROADCAST_ADD] = "BroadcastAdd"
 op_table[OP_BROADCAST_ADD] = "Add"
 
-cdef class PyGraph:
-    cdef Graph *p_graph #Hold a Graph instance
+cdef class PyModel:
+    cdef shared_ptr[Model] p_model  # Hold a Model instance
 
-    def __cinit__(self, graph = None):
-        cdef unsigned long long ptr
-        if graph is None:
-            self.p_graph = new Graph()
-        else:
-            ptr = ctypes.cast(graph, ctypes.c_void_p).value
-            self.p_graph = <Graph*>(ptr)
-
-    def get_ptr_addr(self):
-        cdef uintptr_t ptr
-        return <uintptr_t>self.p_graph
-
-    def print_measurements(self):
-        self.p_graph.print_measurements()
-
-    def run_time(self):
-        return self.p_graph.run()
-
-    def run_time_memorysafe(self):
-        return self.p_graph.run_memorysafe()
-
-    def cost(self):
-        return self.p_graph.total_cost()
+    def __cinit__(self):
+        self.p_model = shared_ptr[Model](new Model())
 
     #def __dealloc__(self):
-        #t = ctypes.cast(<unsigned long long>self.p_graph, ctypes.c_void_p)
-        #print(t)
-        #del self.p_graph
+    #    self.p_model.reset()
+
+cdef object PyTensor_factory(TensorHandle ptr):
+    cdef PyTensor py_obj = PyTensor()
+    py_obj.ctensor = ptr
+    return py_obj
+
+cdef class PyTensor:
+    cdef TensorHandle ctensor  # Hold a Tensor instance
+
+    def __cinit__(self):
+        self.ctensor = shared_ptr[Tensor](NULL)
+
+    # cdef inline _set_tensor(self, bool create, TensorHandle tensor):
+    #     if create:
+    #         self.ctensor = shared_ptr[Tensor](NULL)
+    #     else:
+    #         self.ctensor = tensor
+
+    # property tensor:
+    #     def __get__(self):
+    #         if self.ctensor == NULL:
+    #             return None
+    #         else:
+    #             return self.ctensor
+
+        # def __set__(self, value):
+        #     self.ctensor = value
+
+    def dim(self, int idx):
+        if idx < deref(self.ctensor).numDim:
+            return deref(self.ctensor).dim[idx]
+        else:
+            assert False, "Error: index out of range"
+            return None
+
+
+cdef object PyGraph_factory(shared_ptr[Graph] ptr):
+    cdef PyGraph py_obj = PyGraph()
+    py_obj.p_graph = ptr
+    return py_obj
+
+cdef class PyGraph:
+    cdef shared_ptr[Graph] p_graph  #Hold a Graph instance
+
+    def __cinit__(self):
+        self.p_graph = shared_ptr[Graph](new Graph())
+
+    property graph:
+        def __get__(self):
+            if self.p_graph == NULL:
+                return None
+            else:
+                return <uintptr_t> self.p_graph.get()
+
+    def get_ptr_addr(self):
+        return <uintptr_t>self.p_graph.get()
+
+    def print_measurements(self):
+        deref(self.p_graph).print_measurements()
+
+    def run_time(self):
+        return deref(self.p_graph).run()
+
+    def run_time_memorysafe(self):
+        return deref(self.p_graph).run_memorysafe()
+
+    def cost(self):
+        return deref(self.p_graph).total_cost()
+
+    #def __dealloc__(self):
+    #t = ctypes.cast(<unsigned long long>self.p_graph, ctypes.c_void_p)
+    #print(t)
+    #del self.p_graph
 
     # element-wise addition
     def add(self, PyTensor x, PyTensor y):
-        cdef TensorHandle handle = self.p_graph.element(OP_EW_ADD, x.ctensor, y.ctensor)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)
+        cdef TensorHandle handle = deref(self.p_graph).element(OP_EW_ADD, x.ctensor, y.ctensor)
+
+        return PyTensor_factory(handle)
 
     def batchnorm(self, PyTensor input, PyTensor scale, PyTensor bias, PyTensor mean, PyTensor var):
-        cdef TensorHandle handle = self.p_graph.batchnorm(input.ctensor, scale.ctensor, bias.ctensor, mean.ctensor, var.ctensor)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)
+        cdef TensorHandle handle = deref(self.p_graph).batchnorm(input.ctensor, scale.ctensor, bias.ctensor, mean.ctensor,
+                                                          var.ctensor)
+
+        return PyTensor_factory(handle)
 
     def cast(self, *, PyTensor input, datatype):
         datatype = get_data_type(datatype)
-        cdef TensorHandle handle = self.p_graph.cast(input.ctensor, datatype)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)    
+        cdef TensorHandle handle = deref(self.p_graph).cast(input.ctensor, datatype)
+
+        return PyTensor_factory(handle)
 
     def ceil(self, *, PyTensor input):
-        cdef TensorHandle handle = self.p_graph.ceil(input.ctensor)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)
+        cdef TensorHandle handle = deref(self.p_graph).ceil(input.ctensor)
+
+        return PyTensor_factory(handle)
 
     def concat(self, int axis, list inputs):
         cdef TensorHandle cinputs[32]
         cdef unsigned long long ptr
         assert len(inputs) <= 32
         for i in range(len(inputs)):
-            assert(type(inputs[i]) == PyTensor)
-            assert(inputs[i].tensor is not None)
-            ptr = ctypes.cast(inputs[i].tensor, ctypes.c_void_p).value
-            cinputs[i] = <TensorHandle>(ptr)
-        cdef TensorHandle handle = self.p_graph.concat(axis, len(inputs), cinputs)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)
+            assert (type(inputs[i]) == PyTensor)
+            #assert (inputs[i].ctensor is not None)
+            cinputs[i] = (<PyTensor>inputs[i]).ctensor
+
+        cdef TensorHandle handle = deref(self.p_graph).concat(axis, len(inputs), cinputs)
+
+        return PyTensor_factory(handle)
 
     def conv2d(self, *, PyTensor input, PyTensor weight, strides, padding, activation = "NONE"):
         assert (type(input) == PyTensor)
         padding = get_padding_mode(padding)
         activation = get_activation_mode(activation)
-        cdef TensorHandle handle = self.p_graph.conv2d(input.ctensor, weight.ctensor, strides[0], strides[1], padding, activation)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)
+        cdef TensorHandle handle = deref(self.p_graph).conv2d(input.ctensor, weight.ctensor, strides[0], strides[1], padding,
+                                                       activation)
+
+        return PyTensor_factory(handle)
 
     def div(self, *, PyTensor x, PyTensor y):
-        cdef TensorHandle handle = self.p_graph.element(OP_EW_DIV, x.ctensor, y.ctensor)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)
+        cdef TensorHandle handle = deref(self.p_graph).element(OP_EW_DIV, x.ctensor, y.ctensor)
+
+        return PyTensor_factory(handle)
 
     def dropout(self, PyTensor input, float rate = 0):
         # We ignore dropout rate for inference
-        cdef TensorHandle handle = self.p_graph.dropout(input.ctensor)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)
+        cdef TensorHandle handle = deref(self.p_graph).dropout(input.ctensor)
+
+        return PyTensor_factory(handle)
 
     def equal(self, *, PyTensor x, PyTensor y):
-        cdef TensorHandle handle = self.p_graph.element(OP_EW_EQUAL, x.ctensor, y.ctensor)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)
+        cdef TensorHandle handle = deref(self.p_graph).element(OP_EW_EQUAL, x.ctensor, y.ctensor)
+
+        return PyTensor_factory(handle)
 
     def exp(self, *, PyTensor input):
-        cdef TensorHandle handle = self.p_graph.exp(input.ctensor)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)
+        cdef TensorHandle handle = deref(self.p_graph).exp(input.ctensor)
+
+        return PyTensor_factory(handle)
 
     def greater(self, *, PyTensor x, PyTensor y):
-        cdef TensorHandle handle = self.p_graph.element(OP_EW_GREATER, x.ctensor, y.ctensor)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)
+        cdef TensorHandle handle = deref(self.p_graph).element(OP_EW_GREATER, x.ctensor, y.ctensor)
+
+        return PyTensor_factory(handle)
 
     def identity(self, PyTensor input):
         # We ignore dropout rate for inference
-        cdef TensorHandle handle = self.p_graph.dropout(input.ctensor)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)
+        cdef TensorHandle handle = deref(self.p_graph).dropout(input.ctensor)
+
+        return PyTensor_factory(handle)
 
     def leakyrelu(self, PyTensor input, float alpha, bool inplace = False):
-        cdef TensorHandle handle = self.p_graph.leakyrelu(input.ctensor, alpha, inplace)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)
+        cdef TensorHandle handle = deref(self.p_graph).leakyrelu(input.ctensor, alpha, inplace)
+
+        return PyTensor_factory(handle)
 
     def less(self, *, PyTensor x, PyTensor y):
-        cdef TensorHandle handle = self.p_graph.element(OP_EW_LESS, x.ctensor, y.ctensor)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)
+        cdef TensorHandle handle = deref(self.p_graph).element(OP_EW_LESS, x.ctensor, y.ctensor)
+
+        return PyTensor_factory(handle)
 
     def log(self, *, PyTensor input):
-        cdef TensorHandle handle = self.p_graph.log(input.ctensor)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)
+        cdef TensorHandle handle = deref(self.p_graph).log(input.ctensor)
+
+        return PyTensor_factory(handle)
 
     def logical_not(self, *, PyTensor input):
-        cdef TensorHandle handle = self.p_graph.logical_not(input.ctensor)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)
+        cdef TensorHandle handle = deref(self.p_graph).logical_not(input.ctensor)
+
+        return PyTensor_factory(handle)
 
     def matmul(self, PyTensor input, PyTensor weight, activation = "NONE"):
-        assert(type(input) == PyTensor)
+        assert (type(input) == PyTensor)
         activation = get_activation_mode(activation)
-        cdef TensorHandle handle = self.p_graph.matmul(input.ctensor, weight.ctensor, activation)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)
+        cdef TensorHandle handle = deref(self.p_graph).matmul(input.ctensor, weight.ctensor, activation)
+
+        return PyTensor_factory(handle)
 
     def max(self, PyTensor x, PyTensor y):
-        cdef TensorHandle handle = self.p_graph.element(OP_EW_MAX, x.ctensor, y.ctensor)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)
+        cdef TensorHandle handle = deref(self.p_graph).element(OP_EW_MAX, x.ctensor, y.ctensor)
+
+        return PyTensor_factory(handle)
 
     def min(self, PyTensor x, PyTensor y):
-        cdef TensorHandle handle = self.p_graph.element(OP_EW_MIN, x.ctensor, y.ctensor)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)
+        cdef TensorHandle handle = deref(self.p_graph).element(OP_EW_MIN, x.ctensor, y.ctensor)
+
+        return PyTensor_factory(handle)
 
     # element-wise multiplication
     def mul(self, PyTensor x, PyTensor y):
-        cdef TensorHandle handle = self.p_graph.element(OP_EW_MUL, x.ctensor, y.ctensor)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)
+        cdef TensorHandle handle = deref(self.p_graph).element(OP_EW_MUL, x.ctensor, y.ctensor)
+
+        return PyTensor_factory(handle)
 
     def maxpool2d(self, PyTensor input, kernels, strides, padding, activation = "NONE"):
         padding = get_padding_mode(padding)
         activation = get_activation_mode(activation)
-        cdef TensorHandle handle = self.p_graph.pool2d_max(input.ctensor, kernels[0], kernels[1], strides[0], strides[1], padding, activation)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)
+        cdef TensorHandle handle = deref(self.p_graph).pool2d_max(input.ctensor, kernels[0], kernels[1], strides[0],
+                                                           strides[1], padding, activation)
+
+        return PyTensor_factory(handle)
 
     def avgpool2d(self, *, PyTensor input, kernels, strides, padding, activation = "NONE"):
         padding = get_padding_mode(padding)
         activation = get_activation_mode(activation)
-        cdef TensorHandle handle = self.p_graph.pool2d_avg(input.ctensor, kernels[0], kernels[1], strides[0], strides[1], padding, activation)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)
+        cdef TensorHandle handle = deref(self.p_graph).pool2d_avg(input.ctensor, kernels[0], kernels[1], strides[0],
+                                                           strides[1], padding, activation)
+
+        return PyTensor_factory(handle)
 
     def prelu(self, *, PyTensor x, PyTensor slope):
-        cdef TensorHandle handle = self.p_graph.element(OP_PRELU, x.ctensor, slope.ctensor)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)
+        cdef TensorHandle handle = deref(self.p_graph).element(OP_PRELU, x.ctensor, slope.ctensor)
+
+        return PyTensor_factory(handle)
 
     def reduce_argmax(self, *, PyTensor input, tuple axes, bool keepdims = True):
         cdef vector[int] caxes
         caxes.resize(len(axes))
         for i in range(len(axes)):
             caxes[i] = axes[i]
-        cdef TensorHandle handle = self.p_graph.reduce_argmax(input.ctensor, caxes, keepdims)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)
+        cdef TensorHandle handle = deref(self.p_graph).reduce_argmax(input.ctensor, caxes, keepdims)
+
+        return PyTensor_factory(handle)
 
     def reduce_argmin(self, *, PyTensor input, tuple axes, bool keepdims = True):
         cdef vector[int] caxes
         caxes.resize(len(axes))
         for i in range(len(axes)):
             caxes[i] = axes[i]
-        cdef TensorHandle handle = self.p_graph.reduce_argmin(input.ctensor, caxes, keepdims)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)
+        cdef TensorHandle handle = deref(self.p_graph).reduce_argmin(input.ctensor, caxes, keepdims)
+
+        return PyTensor_factory(handle)
 
     def reduce_max(self, *, PyTensor input, tuple axes, bool keepdims = True):
         cdef vector[int] caxes
         caxes.resize(len(axes))
         for i in range(len(axes)):
             caxes[i] = axes[i]
-        cdef TensorHandle handle = self.p_graph.reduce_max(input.ctensor, caxes, keepdims)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)
+        cdef TensorHandle handle = deref(self.p_graph).reduce_max(input.ctensor, caxes, keepdims)
+
+        return PyTensor_factory(handle)
 
     def reduce_mean(self, *, PyTensor input, tuple axes, bool keepdims = True):
         cdef vector[int] caxes
         caxes.resize(len(axes))
         for i in range(len(axes)):
             caxes[i] = axes[i]
-        cdef TensorHandle handle = self.p_graph.reduce_mean(input.ctensor, caxes, keepdims)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)
+        cdef TensorHandle handle = deref(self.p_graph).reduce_mean(input.ctensor, caxes, keepdims)
+
+        return PyTensor_factory(handle)
 
     def reduce_min(self, *, PyTensor input, tuple axes, bool keepdims = True):
         cdef vector[int] caxes
         caxes.resize(len(axes))
         for i in range(len(axes)):
             caxes[i] = axes[i]
-        cdef TensorHandle handle = self.p_graph.reduce_min(input.ctensor, caxes, keepdims)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)
+        cdef TensorHandle handle = deref(self.p_graph).reduce_min(input.ctensor, caxes, keepdims)
+
+        return PyTensor_factory(handle)
 
     def reduce_prod(self, *, PyTensor input, tuple axes, bool keepdims = True):
         cdef vector[int] caxes
         caxes.resize(len(axes))
         for i in range(len(axes)):
             caxes[i] = axes[i]
-        cdef TensorHandle handle = self.p_graph.reduce_prod(input.ctensor, caxes, keepdims)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)
+        cdef TensorHandle handle = deref(self.p_graph).reduce_prod(input.ctensor, caxes, keepdims)
+
+        return PyTensor_factory(handle)
 
     def reduce_sum(self, *, PyTensor input, tuple axes, bool keepdims = True):
         cdef vector[int] caxes
         caxes.resize(len(axes))
         for i in range(len(axes)):
             caxes[i] = axes[i]
-        cdef TensorHandle handle = self.p_graph.reduce_sum(input.ctensor, caxes, keepdims)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)
+        cdef TensorHandle handle = deref(self.p_graph).reduce_sum(input.ctensor, caxes, keepdims)
+
+        return PyTensor_factory(handle)
 
     def reshape(self, PyTensor input, tuple shape):
         cdef vector[int] cshape
         cshape.resize(len(shape))
         for i in range(len(shape)):
             cshape[i] = shape[i]
-        cdef TensorHandle handle = self.p_graph.reshape(input.ctensor, cshape)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)
+        cdef TensorHandle handle = deref(self.p_graph).reshape(input.ctensor, cshape)
+
+        return PyTensor_factory(handle)
 
     def relu(self, PyTensor input, bool inplace = False):
-        cdef TensorHandle handle = self.p_graph.relu(input.ctensor, inplace)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)
+        cdef TensorHandle handle = deref(self.p_graph).relu(input.ctensor, inplace)
+
+        return PyTensor_factory(handle)
 
     def round(self, PyTensor input):
-        cdef TensorHandle handle = self.p_graph.round(input.ctensor)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)
+        cdef TensorHandle handle = deref(self.p_graph).round(input.ctensor)
+
+        return PyTensor_factory(handle)
 
     def shape(self, PyTensor input):
-        cdef TensorHandle handle = self.p_graph.shape(input.ctensor, OP_SHAPE)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)
+        cdef TensorHandle handle = deref(self.p_graph).shape(input.ctensor, OP_SHAPE)
+
+        return PyTensor_factory(handle)
 
     def sigmoid(self, PyTensor input, bool inplace = False):
-        cdef TensorHandle handle = self.p_graph.sigmoid(input.ctensor, inplace)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)
+        cdef TensorHandle handle = deref(self.p_graph).sigmoid(input.ctensor, inplace)
+
+        return PyTensor_factory(handle)
 
     def size(self, *, PyTensor input):
-        cdef TensorHandle handle = self.p_graph.shape(input.ctensor, OP_SIZE)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)
+        cdef TensorHandle handle = deref(self.p_graph).shape(input.ctensor, OP_SIZE)
+
+        return PyTensor_factory(handle)
 
     def slice(self, PyTensor input, start, end, axes, steps):
         cdef vector[int] cstart
@@ -431,7 +448,7 @@ cdef class PyGraph:
         cend.resize(len(end))
         for i in range(len(end)):
             cend[i] = end[i]
-        if axes: 
+        if axes:
             caxes.resize(len(axes))
             for i in range(len(axes)):
                 caxes[i] = axes[i]
@@ -447,9 +464,9 @@ cdef class PyGraph:
             csteps.resize(len(start))
             for i in range(len(start)):
                 csteps[i] = 1
-        cdef TensorHandle handle = self.p_graph.slice(input.ctensor, cstart, cend, caxes, csteps)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)
+        cdef TensorHandle handle = deref(self.p_graph).slice(input.ctensor, cstart, cend, caxes, csteps)
+
+        return PyTensor_factory(handle)
 
     def split(self, PyTensor input, int axis, sizes):
         cdef TensorHandle coutputs[32]
@@ -459,57 +476,56 @@ cdef class PyGraph:
             csizes.resize(len(sizes))
             for i in range(len(sizes)):
                 csizes[i] = sizes[i]
-            self.p_graph.split(input.ctensor, axis, csizes, coutputs)
+            deref(self.p_graph).split(input.ctensor, axis, csizes, coutputs)
         else:
             # sizes is an integer
-            self.p_graph.split_equal(input.ctensor, axis, sizes, coutputs)
+            deref(self.p_graph).split_equal(input.ctensor, axis, sizes, coutputs)
         outputs = list()
         for i in range(len(sizes)):
-            t = ctypes.cast(<unsigned long long>coutputs[i], ctypes.c_void_p)
-            outputs.append(PyTensor(t))
+            outputs.append(PyTensor_factory(coutputs[i]))
         return outputs
 
     def sqrt(self, *, PyTensor input):
-        cdef TensorHandle handle = self.p_graph.sqrt(input.ctensor)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)
+        cdef TensorHandle handle = deref(self.p_graph).sqrt(input.ctensor)
+
+        return PyTensor_factory(handle)
 
     def squeeze(self, *, PyTensor input, tuple axes):
         cdef vector[int] caxes
         caxes.resize(len(axes))
         for i in range(len(axes)):
             caxes[i] = axes[i]
-        cdef TensorHandle handle = self.p_graph.squeeze(input.ctensor, caxes)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)
+        cdef TensorHandle handle = deref(self.p_graph).squeeze(input.ctensor, caxes)
+
+        return PyTensor_factory(handle)
 
     def sub(self, *, PyTensor x, PyTensor y):
-        cdef TensorHandle handle = self.p_graph.element(OP_EW_SUB, x.ctensor, y.ctensor)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)
+        cdef TensorHandle handle = deref(self.p_graph).element(OP_EW_SUB, x.ctensor, y.ctensor)
+
+        return PyTensor_factory(handle)
 
     def tanh(self, PyTensor input, bool inplace = False):
-        cdef TensorHandle handle = self.p_graph.tanh(input.ctensor, inplace)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)
+        cdef TensorHandle handle = deref(self.p_graph).tanh(input.ctensor, inplace)
+
+        return PyTensor_factory(handle)
 
     def transpose(self, PyTensor input, tuple perm, bool shuffle = False):
         cdef vector[int] cperm
         cperm.resize(len(perm))
         for i in range(len(perm)):
             cperm[i] = perm[i]
-        cdef TensorHandle handle = self.p_graph.transpose(input.ctensor, cperm, shuffle)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)
+        cdef TensorHandle handle = deref(self.p_graph).transpose(input.ctensor, cperm, shuffle)
+
+        return PyTensor_factory(handle)
 
     def unsqueeze(self, PyTensor input, tuple axes):
         cdef vector[int] caxes
         caxes.resize(len(axes))
         for i in range(len(axes)):
             caxes[i] = axes[i]
-        cdef TensorHandle handle = self.p_graph.unsqueeze(input.ctensor, caxes)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)
+        cdef TensorHandle handle = deref(self.p_graph).unsqueeze(input.ctensor, caxes)
+
+        return PyTensor_factory(handle)
 
     def new_input(self, *, tuple dims):
         cdef int ndim = len(dims)
@@ -517,9 +533,9 @@ cdef class PyGraph:
         assert (ndim < 16)
         for i in range(0, len(dims)):
             dim_array[i] = dims[i]
-        cdef TensorHandle handle = self.p_graph.new_input(ndim, dim_array)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)
+        cdef TensorHandle handle = deref(self.p_graph).new_input(ndim, dim_array)
+
+        return PyTensor_factory(handle)
 
     def new_weight(self, *, tuple dims, data = None):
         cdef int ndim = len(dims)
@@ -535,18 +551,17 @@ cdef class PyGraph:
         assert (ndim < 16)
         for i in range(0, len(dims)):
             dim_array[i] = dims[i]
-        cdef TensorHandle handle = self.p_graph.new_weight(ndim, dim_array, arr.data.as_floats)
-        t = ctypes.cast(<unsigned long long>handle, ctypes.c_void_p)
-        return PyTensor(t)
+        cdef TensorHandle handle = deref(self.p_graph).new_weight(ndim, dim_array, arr.data.as_floats)
+
+        return PyTensor_factory(handle)
 
     def optimize(self, float alpha, int budget, bool print_subst):
-        cdef Graph* new_graph = self.p_graph.optimize(alpha, budget, print_subst)
-        graph = ctypes.cast(<unsigned long long>new_graph, ctypes.c_void_p)
-        return PyGraph(graph)
+        cdef shared_ptr[Graph] new_graph = deref(self.p_graph).optimize(alpha, budget, print_subst)
+        return PyGraph_factory(new_graph)
 
     def get_operator_list(self):
         cdef Op ops[4192]
-        cdef int numOps = self.p_graph.get_operator_list(ops, 4192)
+        cdef int numOps = deref(self.p_graph).get_operator_list(ops, 4192)
         opList = list()
         for i in range(numOps):
             #print(ops[i].guid)
@@ -555,7 +570,7 @@ cdef class PyGraph:
 
     def get_input_edges(self, Op op):
         cdef Edge edges[128];
-        cdef int numEdges = self.p_graph.get_input_edges(edges, op.guid)
+        cdef int numEdges = deref(self.p_graph).get_input_edges(edges, op.guid)
         inEdges = list()
         for i in range(numEdges):
             inEdges.append(edges[i])
@@ -563,7 +578,7 @@ cdef class PyGraph:
 
     def get_input_dims(self, Op op, int idx):
         cdef int dims[8]
-        cdef int ndims = self.p_graph.get_input_dims(op.guid, dims, idx)
+        cdef int ndims = deref(self.p_graph).get_input_dims(op.guid, dims, idx)
         dimlist = list()
         for i in range(ndims):
             dimlist.append(dims[i])
@@ -574,12 +589,12 @@ cdef class PyGraph:
         data = np.zeros(shape=dims)
         val = array.array('f', data.flatten().tolist())
         cdef array.array arr = val
-        self.p_graph.get_weight_value(op.guid, arr.data.as_floats)
+        deref(self.p_graph).get_weight_value(op.guid, arr.data.as_floats)
         return val
 
     def get_split_lens(self, Op op):
         cdef int lens[128]
-        cdef int numsplits = self.p_graph.get_split_lens(op.guid, lens)
+        cdef int numsplits = deref(self.p_graph).get_split_lens(op.guid, lens)
         lenlist = list()
         for i in range(numsplits):
             lenlist.append(lens[i])
@@ -587,17 +602,17 @@ cdef class PyGraph:
 
     def get_output_dims(self, Op op, int idx):
         cdef int dims[8]
-        cdef int ndims = self.p_graph.get_output_dims(op.guid, dims, idx)
+        cdef int ndims = deref(self.p_graph).get_output_dims(op.guid, dims, idx)
         dimlist = list()
         for i in range(ndims):
             dimlist.append(dims[i])
         return dimlist
 
     def get_num_outputs(self, Op op):
-        return self.p_graph.get_num_outputs(op.guid)
+        return deref(self.p_graph).get_num_outputs(op.guid)
 
     def get_operator_type(self, Op op):
-        cdef OpType type = self.p_graph.get_operator_type(op.guid)
+        cdef OpType type = deref(self.p_graph).get_operator_type(op.guid)
         if type in op_table:
             return op_table[type]
         else:
@@ -608,24 +623,24 @@ cdef class PyGraph:
         cdef int kh, kw, sh, sw
         cdef PaddingMode pm
         if attrname == 'kernel_shape':
-            kh = self.p_graph.get_operator_int_attr(op.guid, PM_KERNEL_H)
-            kw = self.p_graph.get_operator_int_attr(op.guid, PM_KERNEL_W)
+            kh = deref(self.p_graph).get_operator_int_attr(op.guid, PM_KERNEL_H)
+            kw = deref(self.p_graph).get_operator_int_attr(op.guid, PM_KERNEL_W)
             return [kh, kw]
         elif attrname == 'strides':
-            sh = self.p_graph.get_operator_int_attr(op.guid, PM_STRIDE_H)
-            sw = self.p_graph.get_operator_int_attr(op.guid, PM_STRIDE_W)
+            sh = deref(self.p_graph).get_operator_int_attr(op.guid, PM_STRIDE_H)
+            sw = deref(self.p_graph).get_operator_int_attr(op.guid, PM_STRIDE_W)
             return [sh, sw]
         elif attrname == 'pads':
-            pm = <PaddingMode>self.p_graph.get_operator_int_attr(op.guid, PM_PAD)
+            pm = <PaddingMode> deref(self.p_graph).get_operator_int_attr(op.guid, PM_PAD)
             if pm == PD_MODE_VALID:
                 return [0, 0, 0, 0]
             assert pm == PD_MODE_SAME
             dims = self.get_input_dims(op, 0)
             assert len(dims) == 4, "input tensor must be 4 dim for pads attribute"
-            kh = self.p_graph.get_operator_int_attr(op.guid, PM_KERNEL_H)
-            kw = self.p_graph.get_operator_int_attr(op.guid, PM_KERNEL_W)
-            sh = self.p_graph.get_operator_int_attr(op.guid, PM_STRIDE_H)
-            sw = self.p_graph.get_operator_int_attr(op.guid, PM_STRIDE_W)
+            kh = deref(self.p_graph).get_operator_int_attr(op.guid, PM_KERNEL_H)
+            kw = deref(self.p_graph).get_operator_int_attr(op.guid, PM_KERNEL_W)
+            sh = deref(self.p_graph).get_operator_int_attr(op.guid, PM_STRIDE_H)
+            sw = deref(self.p_graph).get_operator_int_attr(op.guid, PM_STRIDE_W)
             inputH = dims[2]
             inputW = dims[3]
             if inputH % sh == 0:
@@ -638,15 +653,15 @@ cdef class PyGraph:
                 padW = max(kw - (inputW % sw), 0)
             return [padH // 2, padW // 2, padH - padH // 2, padW - padW // 2]
         elif attrname == 'group':
-            return self.p_graph.get_operator_int_attr(op.guid, PM_GROUP)
+            return deref(self.p_graph).get_operator_int_attr(op.guid, PM_GROUP)
         elif attrname == 'axis':
-            return self.p_graph.get_operator_int_attr(op.guid, PM_AXIS)
+            return deref(self.p_graph).get_operator_int_attr(op.guid, PM_AXIS)
         elif attrname == 'split':
             return self.get_split_lens(op)
         elif attrname == 'perm':
-            perIdx = self.p_graph.get_operator_int_attr(op.guid, PM_PERM)
+            perIdx = deref(self.p_graph).get_operator_int_attr(op.guid, PM_PERM)
             dims = self.get_output_dims(op, 0)
-            for i in range(len(dims)-1,-1,-1):
+            for i in range(len(dims) - 1, -1, -1):
                 dims[i] = perIdx % len(dims)
                 perIdx = perIdx // len(dims)
             perm = tuple(dims)
@@ -655,4 +670,4 @@ cdef class PyGraph:
             # FIXME
             return [0]
         else:
-           assert False, 'Internal error: unknow attribute {}'.format(attrname)
+            assert False, 'Internal error: unknow attribute {}'.format(attrname)
